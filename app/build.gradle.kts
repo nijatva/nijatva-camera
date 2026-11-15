@@ -32,7 +32,7 @@ android {
         // The full build: every mode, panorama included.
         create("full") {
             dimension = "edition"
-            resValue("string", "app_name", "Nijatva")
+            resValue("string", "app_name", "Nijatva Camera")
             buildConfigField("boolean", "LITE", "false")
         }
         // Lite: three modes, no panorama, no sphere guidance. Same engine.
@@ -40,7 +40,7 @@ android {
             dimension = "edition"
             applicationIdSuffix = ".lite"
             versionNameSuffix = "-lite"
-            resValue("string", "app_name", "Nijatva Lite")
+            resValue("string", "app_name", "Nijatva Camera Lite")
             buildConfigField("boolean", "LITE", "true")
         }
     }
