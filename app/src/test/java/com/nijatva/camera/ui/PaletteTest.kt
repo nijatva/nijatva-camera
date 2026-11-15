@@ -55,6 +55,20 @@ class PaletteTest {
     }
 
     @Test
+    fun textOnAccentStaysLegible() {
+        // Saffron is a light accent, so dark text sits on it; green and indigo are
+        // dark, so the text has to go white.
+        Palette.apply(ThemeChoice.BLACK, AccentChoice.SAFFRON, darkSystem = true)
+        assertEquals(0xFF101820.toInt(), Palette.onAccent())
+
+        Palette.apply(ThemeChoice.BLACK, AccentChoice.GREEN, darkSystem = true)
+        assertEquals(0xFFFFFFFF.toInt(), Palette.onAccent())
+
+        Palette.apply(ThemeChoice.BLACK, AccentChoice.INDIGO, darkSystem = true)
+        assertEquals(0xFFFFFFFF.toInt(), Palette.onAccent())
+    }
+
+    @Test
     fun softAccentKeepsTheColourAndSetsAlpha() {
         Palette.apply(ThemeChoice.BLACK, AccentChoice.GREEN, darkSystem = true)
 

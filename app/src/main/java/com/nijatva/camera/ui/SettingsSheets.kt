@@ -2,6 +2,7 @@ package com.nijatva.camera.ui
 
 import android.app.Dialog
 import android.content.Context
+import android.content.res.ColorStateList
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.util.TypedValue
@@ -300,10 +301,10 @@ class SettingsSheet(
                 text = label
                 gravity = Gravity.CENTER
                 setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
-                setTextColor(if (selected) Color.parseColor("#101820") else Color.WHITE)
+                setTextColor(if (selected) Palette.onAccent() else Color.WHITE)
                 background = GradientDrawable().apply {
                     cornerRadius = dp(20).toFloat()
-                    setColor(if (selected) Color.parseColor("#A8C7FA") else Color.parseColor("#26292E"))
+                    setColor(if (selected) Palette.accent else Color.parseColor("#26292E"))
                 }
                 setPadding(0, dp(12), 0, dp(12))
                 setOnClickListener {
@@ -322,10 +323,10 @@ class SettingsSheet(
     }
 
     private fun stylePill(pill: TextView, selected: Boolean) {
-        pill.setTextColor(if (selected) Color.parseColor("#101820") else Color.WHITE)
+        pill.setTextColor(if (selected) Palette.onAccent() else Color.WHITE)
         pill.background = GradientDrawable().apply {
             cornerRadius = dp(20).toFloat()
-            setColor(if (selected) Color.parseColor("#A8C7FA") else Color.parseColor("#26292E"))
+            setColor(if (selected) Palette.accent else Color.parseColor("#26292E"))
         }
     }
 
@@ -344,6 +345,7 @@ class SettingsSheet(
         val row = rowContainer(title, subtitle)
         val toggle = Switch(context).apply {
             isChecked = checked
+            tintAccent(Palette.accent)
             setOnCheckedChangeListener { _, value -> onChange(value) }
         }
         row.addView(toggle, LinearLayout.LayoutParams(
@@ -356,7 +358,7 @@ class SettingsSheet(
         val row = rowContainer(title, subtitle)
         row.addView(TextView(context).apply {
             text = value
-            setTextColor(Color.parseColor("#A8C7FA"))
+            setTextColor(Palette.accent)
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
         })
         row.setOnClickListener { onClick() }
@@ -446,10 +448,10 @@ class SettingsSheet(
                 gravity = Gravity.CENTER
                 maxLines = 1
                 setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
-                setTextColor(if (isSelected) Color.parseColor("#101820") else Color.WHITE)
+                setTextColor(if (isSelected) Palette.onAccent() else Color.WHITE)
                 background = GradientDrawable().apply {
                     cornerRadius = dp(16).toFloat()
-                    setColor(if (isSelected) Color.parseColor("#A8C7FA") else Color.parseColor("#26292E"))
+                    setColor(if (isSelected) Palette.accent else Color.parseColor("#26292E"))
                 }
                 setPadding(dp(10), dp(9), dp(10), dp(9))
                 setOnClickListener { onSelect(index) }
@@ -634,6 +636,7 @@ class AdvancedSheet(
         row.addView(text, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         row.addView(Switch(context).apply {
             isChecked = checked
+            tintAccent(Palette.accent)
             setOnCheckedChangeListener { _, value -> onChange(value) }
         })
         return row
@@ -717,10 +720,10 @@ class AdvancedSheet(
                 text = option
                 gravity = Gravity.CENTER
                 setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
-                setTextColor(if (isSelected) Color.parseColor("#101820") else Color.WHITE)
+                setTextColor(if (isSelected) Palette.onAccent() else Color.WHITE)
                 background = GradientDrawable().apply {
                     cornerRadius = dp(16).toFloat()
-                    setColor(if (isSelected) Color.parseColor("#A8C7FA") else Color.parseColor("#26292E"))
+                    setColor(if (isSelected) Palette.accent else Color.parseColor("#26292E"))
                 }
                 setPadding(dp(10), dp(9), dp(10), dp(9))
                 setOnClickListener { onSelect(index) }
@@ -733,4 +736,33 @@ class AdvancedSheet(
     }
 
     private fun dp(value: Int): Int = (value * context.resources.displayMetrics.density).roundToInt()
+}
+
+/**
+ * Tints a switch with the app accent, so the settings pages stop looking like a
+ * different app from the viewfinder. The track takes the same colour at low alpha,
+ * which reads as "on" without shouting.
+ *
+ * Top level rather than a class member because the file holds two sheets and both
+ * need it.
+ */
+private fun Switch.tintAccent(accent: Int) {
+    val checked = intArrayOf(android.R.attr.state_checked)
+    val unchecked = intArrayOf()
+    thumbTintList = ColorStateList(
+        arrayOf(checked, unchecked),
+        intArrayOf(accent, android.graphics.Color.argb(190, 226, 226, 230)),
+    )
+    trackTintList = ColorStateList(
+        arrayOf(checked, unchecked),
+        intArrayOf(
+            android.graphics.Color.argb(
+                120,
+                android.graphics.Color.red(accent),
+                android.graphics.Color.green(accent),
+                android.graphics.Color.blue(accent),
+            ),
+            android.graphics.Color.argb(55, 255, 255, 255),
+        ),
+    )
 }

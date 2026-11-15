@@ -117,6 +117,8 @@ class MainActivity : AppCompatActivity(), CameraEngine.Callback {
     private var swipeStartY = 0f
     private var swipeStartEv = 0
     private var swipingExposure = false
+    private var lastExposureNs = 0L
+    private var lastIso = 0
 
     /** Opens a settings JSON file from the system picker. */
     private val importLauncher = registerForActivityResult(
@@ -1120,6 +1122,14 @@ class MainActivity : AppCompatActivity(), CameraEngine.Callback {
             statusText.text = "Put the phone on a tripod first. It must be still"
             return
         }
+        // Astro also needs a dark scene: a multi-second exposure in daylight is a
+        // white frame and a wasted stack.
+        if (currentMode == Mode.ASTRO &&
+            com.nijatva.camera.camera.AstroGate.blocksCapture(lastExposureNs, lastIso)
+        ) {
+            statusText.text = "Too bright for Astro. Use Night mode"
+            return
+        }
         val seconds = settings.timer.seconds
         if (seconds <= 0) {
             statusText.text = "Capturing"
@@ -1231,6 +1241,10 @@ class MainActivity : AppCompatActivity(), CameraEngine.Callback {
     }
 
     override fun onMetrics(sensitivity: Int, exposureNs: Long, afState: Int) = runOnUiThread {
+        // Remembered for the astro brightness gate: these are the camera's own
+        // measurements of the scene, so no extra metering is needed.
+        lastExposureNs = exposureNs
+        lastIso = sensitivity
         val zoom = engine.currentSettings.zoom
         val lens = if (zoom <= 1.01f) "Auto Lens" else "${"%.1f".format(zoom)}x lens"
         statusStrip.update(lens, afState, exposureNs, sensitivity)
