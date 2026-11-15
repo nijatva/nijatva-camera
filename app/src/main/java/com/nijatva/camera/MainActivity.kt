@@ -23,6 +23,7 @@ import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
+import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
@@ -160,6 +161,34 @@ class MainActivity : AppCompatActivity(), CameraEngine.Callback {
         }
 
         showPreviousCrash()
+        installBackHandling()
+    }
+
+    /**
+     * Back closes whatever overlay is open before it closes the app.
+     *
+     * The MORE grid and the Developer page are overlays inside this activity, not
+     * activities of their own, so without this a back press while either was open
+     * finished the activity and killed the camera session.
+     */
+    private fun installBackHandling() {
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                when {
+                    ::developerPage.isInitialized && developerPage.visibility == View.VISIBLE ->
+                        closeDeveloper()
+
+                    ::modesGrid.isInitialized && modesGrid.visibility == View.VISIBLE ->
+                        closeModesGrid()
+
+                    else -> {
+                        // Nothing of ours is open: let the system do what it would.
+                        isEnabled = false
+                        onBackPressedDispatcher.onBackPressed()
+                    }
+                }
+            }
+        })
     }
 
     override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
@@ -1150,6 +1179,9 @@ class MainActivity : AppCompatActivity(), CameraEngine.Callback {
         if (engine.recording) {
             val secs = engine.recordingElapsedMs() / 1000
             statusText.text = "REC %02d:%02d".format(secs / 60, secs % 60)
+            // Pro mode hides this line because the panel covers it, but a running
+            // take has to stay visible wherever it happens.
+            statusText.visibility = View.VISIBLE
             wasRecording = true
         } else if (wasRecording) {
             wasRecording = false

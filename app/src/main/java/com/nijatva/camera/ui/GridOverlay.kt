@@ -49,11 +49,28 @@ class GridOverlay(context: Context) : View(context) {
         strokeCap = Paint.Cap.ROUND
     }
 
-    /** Shows the focus crosshair where the user tapped. */
+    private val reticleTimeout = Runnable {
+        reticleX = -1f
+        reticleY = -1f
+        invalidate()
+    }
+
+    /**
+     * Shows the focus crosshair where the user tapped, then fades it out.
+     *
+     * A crosshair that never goes away reads as a stuck focus point; the stock
+     * cameras all retire it after a moment.
+     */
     fun showReticle(x: Float, y: Float) {
         reticleX = x
         reticleY = y
         invalidate()
+        removeCallbacks(reticleTimeout)
+        postDelayed(reticleTimeout, RETICLE_MS)
+    }
+
+    private companion object {
+        const val RETICLE_MS = 1600L
     }
 
     /** Called when the phone becomes level, or stops being level. */
