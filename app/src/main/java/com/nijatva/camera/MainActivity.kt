@@ -941,6 +941,7 @@ class MainActivity : AppCompatActivity(), CameraEngine.Callback {
         engine.rawBitDepth = settings.rawBitDepth
         engine.jpegQuality = settings.jpegQuality
         engine.watermark = settings.watermark
+        engine.look = settings.look
 
         val oisSupported = caps?.supportsOis ?: true
         engine.updateSettings { it.copy(oisOn = if (oisSupported) settings.ois else null) }

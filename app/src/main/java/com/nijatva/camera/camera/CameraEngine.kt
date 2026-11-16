@@ -143,6 +143,9 @@ class CameraEngine(
     /** Stamp "Shot on Nijatva" in the corner of merged photos. */
     var watermark: Boolean = false
 
+    /** Colour and tone applied to merged photos. */
+    var look: com.nijatva.camera.grade.LookPreset = com.nijatva.camera.grade.LookPreset.NATURAL
+
     @Volatile
     private var busy = false
 
@@ -502,7 +505,10 @@ class CameraEngine(
                 if (upright !== raw) raw.recycle()
                 // Colour and tone for merged output only. Single-frame JPEGs from the
                 // camera already carry the HAL's own processing, so they are left alone.
-                val graded = com.nijatva.camera.grade.ColorGrade.applyTo(upright)
+                val graded = com.nijatva.camera.grade.ColorGrade.applyTo(
+                    upright,
+                    com.nijatva.camera.grade.ColorGrade.Look.of(look),
+                )
                 val uri = saver.saveJpeg(
                     graded,
                     quality = jpegQuality,

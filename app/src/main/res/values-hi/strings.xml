@@ -47,4 +47,10 @@
     <string name="developer_maintains">देखभाल</string>
     <string name="developer_plus_more">+22</string>
     <string name="developer_footnote">24 में से 2 ऐप्स की रिपॉज़िटरी आज मौजूद है; बाकी 22 योजना में हैं और ऐप्स पेज पर सूचीबद्ध हैं। आँकड़े GitHub से 13 नवंबर 2026 को पढ़े गए।</string>
+    <string name="look_title">लुक</string>
+    <string name="look_subtitle">मर्ज की गई फ़ोटो के रंग और टोन</string>
+    <string name="look_natural">नेचुरल</string>
+    <string name="look_cinematic">सिनेमैटिक</string>
+    <string name="look_vivid">विविड</string>
+    <string name="look_soft">सॉफ़्ट</string>
 </resources>

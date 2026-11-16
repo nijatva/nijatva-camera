@@ -49,4 +49,11 @@
     <string name="developer_maintains">Maintains</string>
     <string name="developer_plus_more">+22</string>
     <string name="developer_footnote">2 of the 24 apps have a repository today; the other 22 are planned and listed on the apps page. Figures read from GitHub on 13 November 2026.</string>
+    <!-- Looks -->
+    <string name="look_title">Look</string>
+    <string name="look_subtitle">Colour and tone for merged photos</string>
+    <string name="look_natural">Natural</string>
+    <string name="look_cinematic">Cinematic</string>
+    <string name="look_vivid">Vivid</string>
+    <string name="look_soft">Soft</string>
 </resources>

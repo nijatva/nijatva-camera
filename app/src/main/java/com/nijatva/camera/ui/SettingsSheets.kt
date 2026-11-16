@@ -244,6 +244,17 @@ class SettingsSheet(
             push()
         })
 
+        content.addView(segmentedRow(
+            title = context.getString(R.string.look_title),
+            subtitle = context.getString(R.string.look_subtitle),
+            options = com.nijatva.camera.grade.LookPreset.entries.map { context.getString(it.labelRes) },
+            selected = com.nijatva.camera.grade.LookPreset.entries.indexOf(settings.look),
+        ) { index ->
+            settings = settings.copy(look = com.nijatva.camera.grade.LookPreset.entries[index])
+            push()
+            rebuild()
+        })
+
         content.addView(switchRow(
             title = "Watermark",
             subtitle = "Stamp \"Shot on Nijatva\" in the corner of merged photos",

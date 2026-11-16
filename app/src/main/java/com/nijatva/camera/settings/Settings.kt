@@ -54,6 +54,7 @@ data class Settings(
     val astroSeconds: Int = 4,
     val astroFrames: Int = 6,
     val watermark: Boolean = false,
+    val look: com.nijatva.camera.grade.LookPreset = com.nijatva.camera.grade.LookPreset.NATURAL,
     val theme: ThemeChoice = ThemeChoice.BLACK,
     val accent: AccentChoice = AccentChoice.SAFFRON,
 )
@@ -92,6 +93,7 @@ class SettingsStore(context: Context) {
             astroSeconds = prefs.getInt("astroSeconds", defaults.astroSeconds).coerceIn(2, 8),
             astroFrames = prefs.getInt("astroFrames", defaults.astroFrames).coerceIn(4, 10),
             watermark = prefs.getBoolean("watermark", defaults.watermark),
+            look = readEnum("look", defaults.look),
             theme = readEnum("theme", defaults.theme),
             accent = readEnum("accent", defaults.accent),
         )
@@ -120,6 +122,7 @@ class SettingsStore(context: Context) {
             .putInt("astroSeconds", settings.astroSeconds)
             .putInt("astroFrames", settings.astroFrames)
             .putBoolean("watermark", settings.watermark)
+            .putString("look", settings.look.name)
             .putString("theme", settings.theme.name)
             .putString("accent", settings.accent.name)
             .apply()
@@ -148,6 +151,7 @@ class SettingsStore(context: Context) {
         put("astroSeconds", s.astroSeconds)
         put("astroFrames", s.astroFrames)
         put("watermark", s.watermark)
+        put("look", s.look.name)
         put("theme", s.theme.name)
         put("accent", s.accent.name)
     }.toString(2)
@@ -184,6 +188,7 @@ class SettingsStore(context: Context) {
             astroSeconds = o.optInt("astroSeconds", d.astroSeconds).coerceIn(2, 8),
             astroFrames = o.optInt("astroFrames", d.astroFrames).coerceIn(4, 10),
             watermark = o.optBoolean("watermark", d.watermark),
+            look = enumFrom(o, "look", d.look),
             theme = enumFrom(o, "theme", d.theme),
             accent = enumFrom(o, "accent", d.accent),
         )

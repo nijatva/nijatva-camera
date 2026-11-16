@@ -23,7 +23,27 @@ object ColorGrade {
         val shoulder: Float = 0.92f,
         /** Blur radius on the downsampled plane, in small pixels (about 4 px at full size per step). */
         val blurRadius: Int = 2,
-    )
+        /** Red gain relative to blue: positive is warmer, negative is cooler. */
+        val warmth: Float = 0f,
+        /** Added to the shadows only, in 0..1. Negative deepens them. */
+        val shadowLift: Float = 0f,
+        /** Unsharp amount on luma. 0 turns it off. */
+        val sharpen: Float = 0.25f,
+        /** Chroma denoise strength, 0..1. Luma is never touched. */
+        val chromaNr: Float = 0.35f,
+    ) {
+        companion object {
+            fun of(preset: LookPreset): Look = Look(
+                clarity = preset.clarity,
+                saturation = preset.saturation,
+                shoulder = preset.shoulder,
+                warmth = preset.warmth,
+                shadowLift = preset.shadowLift,
+                sharpen = preset.sharpen,
+                chromaNr = preset.chromaNr,
+            )
+        }
+    }
 
     private const val DOWN = 4
     private const val LUT_SIZE = 1024
@@ -41,6 +61,7 @@ object ColorGrade {
     /** Grades the pixels in place and returns the same array. */
     fun apply(px: IntArray, w: Int, h: Int, look: Look = Look()): IntArray {
         whiteBalance(px)
+        if (look.warmth != 0f) warmthShift(px, look.warmth)
 
         val n = px.size
         val luma = FloatArray(n)
@@ -61,7 +82,13 @@ object ColorGrade {
                 val b0 = (p and 0xFF) / 255f
                 val y0 = luma[i]
 
-                val l = lut(curve, y0)
+                var l = lut(curve, y0)
+                if (look.shadowLift != 0f) {
+                    // Weight the lift toward the bottom of the range, so highlights
+                    // and mid-grey keep their measured values.
+                    val shadow = (1f - l) * (1f - l)
+                    l = (l + look.shadowLift * shadow).coerceIn(0f, 1f)
+                }
                 val blur = lut(curve, smallBlur[(y / DOWN).coerceAtMost(sh - 1) * sw + (x / DOWN).coerceAtMost(sw - 1)])
                 val midtone = 1f - abs(2f * l - 1f)
                 val lc = (l + look.clarity * midtone * (l - blur)).coerceIn(0f, 1f)
@@ -78,7 +105,113 @@ object ColorGrade {
                     (b * 255f + 0.5f).toInt()
             }
         }
+        if (look.sharpen > 0f) sharpenLuma(px, w, h, look.sharpen)
+        if (look.chromaNr > 0f) chromaDenoise(px, w, h, look.chromaNr)
         return px
+    }
+
+    /**
+     * Warms or cools the frame by moving red and blue in opposite directions around
+     * green, which leaves brightness alone.
+     */
+    fun warmthShift(px: IntArray, amount: Float) {
+        val rGain = 1f + amount
+        val bGain = 1f - amount
+        for (i in px.indices) {
+            val p = px[i]
+            val r0 = ((p shr 16) and 0xFF) / 255f
+            val g0 = ((p shr 8) and 0xFF) / 255f
+            val b0 = (p and 0xFF) / 255f
+            val y = 0.299f * r0 + 0.587f * g0 + 0.114f * b0
+
+            val r = (r0 * rGain).coerceIn(0f, 1f)
+            val b = (b0 * bGain).coerceIn(0f, 1f)
+            // Green carries whatever luma red and blue did not, so a warm shift
+            // changes the balance of colour without changing how bright the frame is.
+            val g = ((y - 0.299f * r - 0.114f * b) / 0.587f).coerceIn(0f, 1f)
+
+            px[i] = (p and 0xFF000000.toInt()) or
+                ((r * 255f + 0.5f).toInt() shl 16) or
+                ((g * 255f + 0.5f).toInt() shl 8) or
+                (b * 255f + 0.5f).toInt()
+        }
+    }
+
+    /**
+     * Unsharp mask on luma only, with a threshold.
+     *
+     * The threshold is what keeps this from undoing the merge: below it the
+     * difference is noise, and amplifying noise is how sharpening makes a photo
+     * look worse rather than crisper. Colour is left alone, so edges gain bite
+     * without fringing.
+     */
+    fun sharpenLuma(px: IntArray, w: Int, h: Int, amount: Float) {
+        val n = px.size
+        val luma = FloatArray(n)
+        for (i in 0 until n) luma[i] = lumaOf(px[i])
+
+        val blur = boxBlur(luma, w, h, 1)
+        val threshold = 2.5f / 255f
+        for (i in 0 until n) {
+            val detail = luma[i] - blur[i]
+            if (abs(detail) < threshold) continue
+            val target = (luma[i] + amount * detail).coerceIn(0f, 1f)
+            val p = px[i]
+            val r = ((p shr 16) and 0xFF) / 255f
+            val g = ((p shr 8) and 0xFF) / 255f
+            val b = (p and 0xFF) / 255f
+            // Move all three channels by the luma delta, so hue is preserved.
+            val d = target - luma[i]
+            val nr = (r + d).coerceIn(0f, 1f)
+            val ng = (g + d).coerceIn(0f, 1f)
+            val nb = (b + d).coerceIn(0f, 1f)
+            px[i] = (p and 0xFF000000.toInt()) or
+                ((nr * 255f + 0.5f).toInt() shl 16) or
+                ((ng * 255f + 0.5f).toInt() shl 8) or
+                (nb * 255f + 0.5f).toInt()
+        }
+    }
+
+    /**
+     * Chroma-only denoise: blurs the colour difference channels and leaves luma
+     * untouched.
+     *
+     * Colour noise is the ugly part of a high-ISO frame and the eye barely resolves
+     * chroma, so smoothing it removes most of the perceived grain while the detail
+     * that matters - the luma - stays as sharp as the merge left it.
+     */
+    fun chromaDenoise(px: IntArray, w: Int, h: Int, strength: Float) {
+        val n = px.size
+        val luma = FloatArray(n)
+        val cb = FloatArray(n)   // blue difference
+        val cr = FloatArray(n)   // red difference
+        for (i in 0 until n) {
+            val p = px[i]
+            val r = ((p shr 16) and 0xFF) / 255f
+            val g = ((p shr 8) and 0xFF) / 255f
+            val b = (p and 0xFF) / 255f
+            val y = 0.299f * r + 0.587f * g + 0.114f * b
+            luma[i] = y
+            cb[i] = b - y
+            cr[i] = r - y
+        }
+
+        val cbSmooth = boxBlur(cb, w, h, 1)
+        val crSmooth = boxBlur(cr, w, h, 1)
+        val k = strength.coerceIn(0f, 1f)
+
+        for (i in 0 until n) {
+            val y = luma[i]
+            val b = y + cb[i] * (1f - k) + cbSmooth[i] * k
+            val r = y + cr[i] * (1f - k) + crSmooth[i] * k
+            // Green follows from keeping the luma the pixel already had.
+            val g = (y - 0.299f * r - 0.114f * b) / 0.587f
+            val p = px[i]
+            px[i] = (p and 0xFF000000.toInt()) or
+                ((r.coerceIn(0f, 1f) * 255f + 0.5f).toInt() shl 16) or
+                ((g.coerceIn(0f, 1f) * 255f + 0.5f).toInt() shl 8) or
+                (b.coerceIn(0f, 1f) * 255f + 0.5f).toInt()
+        }
     }
 
     /**
