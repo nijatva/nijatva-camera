@@ -81,7 +81,7 @@ class ModeStrip(context: Context) : HorizontalScrollView(context) {
 
     /** MORE is highlighted while the grid is open. */
     fun setMoreHighlighted(highlighted: Boolean) {
-        moreChip?.let { chip -> styleChip(chip, highlighted) }
+        moreChip?.let { chip -> styleMoreChip(chip, highlighted) }
     }
 
     /**
@@ -91,10 +91,24 @@ class ModeStrip(context: Context) : HorizontalScrollView(context) {
     private fun styleChip(chip: TextView, chosen: Boolean) {
         chip.background = GradientDrawable().apply {
             cornerRadius = dp(18).toFloat()
-            setColor(if (chosen) PILL else Color.TRANSPARENT)
+            setColor(if (chosen) Palette.accent else Color.TRANSPARENT)
         }
-        chip.setTextColor(if (chosen) Color.parseColor("#101418") else Color.WHITE)
+        chip.setTextColor(if (chosen) Palette.onAccent() else Color.WHITE)
         chip.alpha = if (chosen) 1f else 0.62f
+    }
+
+    /**
+     * MORE marks the screen you are on, not a chosen mode, so it gets an outlined
+     * pill: two filled pills side by side read as two selections.
+     */
+    private fun styleMoreChip(chip: TextView, highlighted: Boolean) {
+        chip.background = GradientDrawable().apply {
+            cornerRadius = dp(18).toFloat()
+            setColor(Color.TRANSPARENT)
+            if (highlighted) setStroke(dp(1).coerceAtLeast(2), Palette.accent)
+        }
+        chip.setTextColor(if (highlighted) Palette.accent else Color.WHITE)
+        chip.alpha = if (highlighted) 1f else 0.62f
     }
 
     private fun chip(label: String): TextView = TextView(context).apply {
@@ -141,7 +155,4 @@ class ModeStrip(context: Context) : HorizontalScrollView(context) {
 
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).roundToInt()
 
-    private companion object {
-        val PILL: Int = Color.parseColor("#C3D0F5")
-    }
 }
