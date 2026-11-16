@@ -29,11 +29,11 @@ enum class LookPreset(
     NATURAL(
         labelRes = R.string.look_natural,
         clarity = 0.18f,
-        saturation = 1.08f,
+        saturation = 1.04f,
         shoulder = 0.92f,
         warmth = 0.0f,
         shadowLift = 0.0f,
-        sharpen = 0.25f,
+        sharpen = 0.18f,
         chromaNr = 0.35f,
     ),
 
@@ -45,7 +45,7 @@ enum class LookPreset(
         shoulder = 0.86f,
         warmth = 0.04f,
         shadowLift = -0.02f,
-        sharpen = 0.35f,
+        sharpen = 0.28f,
         chromaNr = 0.30f,
     ),
 
@@ -57,7 +57,7 @@ enum class LookPreset(
         shoulder = 0.90f,
         warmth = 0.01f,
         shadowLift = 0.01f,
-        sharpen = 0.55f,
+        sharpen = 0.40f,
         chromaNr = 0.45f,
     ),
 
@@ -69,7 +69,7 @@ enum class LookPreset(
         shoulder = 0.80f,
         warmth = 0.06f,
         shadowLift = 0.05f,
-        sharpen = 0.15f,
+        sharpen = 0.12f,
         chromaNr = 0.50f,
     ),
 }

@@ -638,6 +638,12 @@ class MainActivity : AppCompatActivity(), CameraEngine.Callback {
         outlineProvider = android.view.ViewOutlineProvider.BACKGROUND
         scaleType = android.widget.ImageView.ScaleType.CENTER_CROP
         setOnClickListener { openLastShot() }
+        // Long press hands the shot to an editor instead, so the two taps do the two
+        // things people actually want from a thumbnail.
+        setOnLongClickListener {
+            openInEditor()
+            true
+        }
     }
 
     private fun refreshThumbnail(uri: Uri) {
@@ -659,14 +665,60 @@ class MainActivity : AppCompatActivity(), CameraEngine.Callback {
             return
         }
         val type = contentResolver.getType(uri) ?: "image/*"
+        val view = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
+            setDataAndType(uri, type)
+            addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        // The Nijatva Gallery is the natural home for a Nijatva shot, so it is asked
+        // first by package name; anything else on the phone is the fallback.
+        if (launch(android.content.Intent(view).setPackage(GALLERY_PACKAGE))) return
+        if (launch(view)) return
         try {
-            startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
-                setDataAndType(uri, type)
-                addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            })
+            startActivity(android.content.Intent.createChooser(view, "Open with"))
         } catch (_: Exception) {
             Toast.makeText(this, "No app can open this file", Toast.LENGTH_SHORT).show()
         }
+    }
+
+    /** Hands the last shot to an editor, Nijatva Photos if it is installed. */
+    private fun openInEditor() {
+        val uri = lastSavedUri
+        if (uri == null) {
+            Toast.makeText(this, "No photo yet", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val type = contentResolver.getType(uri) ?: "image/*"
+        val edit = android.content.Intent(android.content.Intent.ACTION_EDIT).apply {
+            setDataAndType(uri, type)
+            addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            addFlags(android.content.Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+        }
+        if (launch(android.content.Intent(edit).setPackage(PHOTOS_PACKAGE))) return
+        try {
+            startActivity(android.content.Intent.createChooser(edit, "Edit with"))
+        } catch (_: Exception) {
+            Toast.makeText(this, "No editor installed", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /** True when something on the phone accepted the intent. */
+    private fun launch(intent: android.content.Intent): Boolean = try {
+        startActivity(intent)
+        true
+    } catch (_: android.content.ActivityNotFoundException) {
+        false
+    }
+
+    /** Opens the Nijatva Gallery on its own, not on a file. */
+    private fun openGalleryApp() {
+        val main = android.content.Intent(android.content.Intent.ACTION_MAIN)
+            .addCategory(android.content.Intent.CATEGORY_LAUNCHER)
+            .setPackage(GALLERY_PACKAGE)
+        if (launch(main)) return
+        val view = android.content.Intent(android.content.Intent.ACTION_MAIN)
+            .addCategory(android.content.Intent.CATEGORY_APP_GALLERY)
+        if (launch(view)) return
+        Toast.makeText(this, "No gallery app found", Toast.LENGTH_SHORT).show()
     }
 
     private fun shutterButton(): View = View(this).apply {
@@ -872,6 +924,7 @@ class MainActivity : AppCompatActivity(), CameraEngine.Callback {
      */
     private fun openMenu() {
         val entries = listOf(
+            getString(R.string.menu_gallery) to { openGalleryApp() },
             getString(R.string.menu_settings) to { openSettings() },
             getString(R.string.menu_appearance) to { openAppearance() },
             getString(R.string.menu_developer) to { openDeveloper() },
@@ -1372,6 +1425,9 @@ class MainActivity : AppCompatActivity(), CameraEngine.Callback {
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).roundToInt()
 
     private companion object {
+        /** The other two apps in the suite; asked for by package, not by action. */
+        const val GALLERY_PACKAGE = "com.nijatva.gallery"
+        const val PHOTOS_PACKAGE = "com.nijatva.photos"
         const val REQUEST_CAMERA = 101
         const val REQUEST_AUDIO = 102
         const val EXPOSURE_SWIPE_STEP_DP = 56

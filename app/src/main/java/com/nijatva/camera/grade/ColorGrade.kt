@@ -45,6 +45,13 @@ object ColorGrade {
         }
     }
 
+    /**
+     * The widest colour difference the saturation stage may produce. A saturated
+     * yellow sits near 0.45 of the range already; pushing it past this is what makes
+     * a scene look painted rather than photographed.
+     */
+    private const val CHROMA_CEILING = 0.42f
+
     private const val DOWN = 4
     private const val LUT_SIZE = 1024
 
@@ -93,11 +100,23 @@ object ColorGrade {
                 val midtone = 1f - abs(2f * l - 1f)
                 val lc = (l + look.clarity * midtone * (l - blur)).coerceIn(0f, 1f)
 
-                // Scale chroma (colour minus luma) around the new luma.
+                // Scale chroma around the new luma, but never past a ceiling: a
+                // marigold or a red sari is already close to the edge of the gamut,
+                // and multiplying it further is what turns a photo neon.
                 val s = look.saturation
-                val r = (lc + s * (r0 - y0)).coerceIn(0f, 1f)
-                val g = (lc + s * (g0 - y0)).coerceIn(0f, 1f)
-                val b = (lc + s * (b0 - y0)).coerceIn(0f, 1f)
+                var dr = s * (r0 - y0)
+                var dg = s * (g0 - y0)
+                var db = s * (b0 - y0)
+                val peak = maxOf(dr, dg, db) - minOf(dr, dg, db)
+                if (peak > CHROMA_CEILING) {
+                    val k = CHROMA_CEILING / peak
+                    dr *= k
+                    dg *= k
+                    db *= k
+                }
+                val r = (lc + dr).coerceIn(0f, 1f)
+                val g = (lc + dg).coerceIn(0f, 1f)
+                val b = (lc + db).coerceIn(0f, 1f)
 
                 px[i] = (p and 0xFF000000.toInt()) or
                     ((r * 255f + 0.5f).toInt() shl 16) or
