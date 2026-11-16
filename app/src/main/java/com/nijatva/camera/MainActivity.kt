@@ -1,12 +1,15 @@
 package com.nijatva.camera
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color
 import android.app.Dialog
 import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.GradientDrawable
 import android.net.Uri
+import android.provider.MediaStore
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -112,6 +115,15 @@ class MainActivity : AppCompatActivity(), CameraEngine.Callback {
 
     private var thumbView: android.widget.ImageView? = null
     private var lastSavedUri: Uri? = null
+
+    /**
+     * Set when another app started us with ACTION_IMAGE_CAPTURE or
+     * ACTION_VIDEO_CAPTURE. The shot is handed back to that app and this activity
+     * closes, instead of staying open the way a camera app normally would.
+     */
+    private var externalCapture: ExternalCapture? = null
+
+    private data class ExternalCapture(val video: Boolean, val output: Uri?)
     private val stillness = com.nijatva.camera.camera.StillnessTracker()
     private var ringColor = 0
     private var audioAsked = false
@@ -143,6 +155,8 @@ class MainActivity : AppCompatActivity(), CameraEngine.Callback {
         Palette.apply(settings.theme, settings.accent, isSystemDark())
 
         buildUi()
+
+        readCaptureIntent(intent)
 
         engine = CameraEngine(this, this)
         engine.setDeviceRotation(currentRotationDegrees())
@@ -665,22 +679,13 @@ class MainActivity : AppCompatActivity(), CameraEngine.Callback {
             return
         }
         val type = contentResolver.getType(uri) ?: "image/*"
-        val view = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
-            setDataAndType(uri, type)
-            addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        }
-        // The Nijatva Gallery is the natural home for a Nijatva shot, so it is asked
-        // first by package name; anything else on the phone is the fallback.
-        if (launch(android.content.Intent(view).setPackage(GALLERY_PACKAGE))) return
-        if (launch(view)) return
-        try {
-            startActivity(android.content.Intent.createChooser(view, "Open with"))
-        } catch (_: Exception) {
-            Toast.makeText(this, "No app can open this file", Toast.LENGTH_SHORT).show()
-        }
+        // The suite helper tries Nijatva Gallery, then Nijatva Photos, then whatever
+        // the phone resolves, so a phone with one app installed behaves the same as a
+        // phone with all of them.
+        NijatvaMediaIntents.openImage(this, uri.toString(), type)
     }
 
-    /** Hands the last shot to an editor, Nijatva Photos if it is installed. */
+    /** Hands the last shot to an editor, Nijatva Photo Editor if it is installed. */
     private fun openInEditor() {
         val uri = lastSavedUri
         if (uri == null) {
@@ -688,37 +693,25 @@ class MainActivity : AppCompatActivity(), CameraEngine.Callback {
             return
         }
         val type = contentResolver.getType(uri) ?: "image/*"
-        val edit = android.content.Intent(android.content.Intent.ACTION_EDIT).apply {
-            setDataAndType(uri, type)
-            addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            addFlags(android.content.Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
-        }
-        if (launch(android.content.Intent(edit).setPackage(PHOTOS_PACKAGE))) return
-        try {
-            startActivity(android.content.Intent.createChooser(edit, "Edit with"))
-        } catch (_: Exception) {
-            Toast.makeText(this, "No editor installed", Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    /** True when something on the phone accepted the intent. */
-    private fun launch(intent: android.content.Intent): Boolean = try {
-        startActivity(intent)
-        true
-    } catch (_: android.content.ActivityNotFoundException) {
-        false
+        NijatvaMediaIntents.editImage(this, uri.toString(), type)
     }
 
     /** Opens the Nijatva Gallery on its own, not on a file. */
     private fun openGalleryApp() {
         val main = android.content.Intent(android.content.Intent.ACTION_MAIN)
             .addCategory(android.content.Intent.CATEGORY_LAUNCHER)
-            .setPackage(GALLERY_PACKAGE)
-        if (launch(main)) return
-        val view = android.content.Intent(android.content.Intent.ACTION_MAIN)
-            .addCategory(android.content.Intent.CATEGORY_APP_GALLERY)
-        if (launch(view)) return
-        Toast.makeText(this, "No gallery app found", Toast.LENGTH_SHORT).show()
+            .setPackage(NijatvaMediaIntents.GALLERY)
+        try {
+            startActivity(main)
+        } catch (_: android.content.ActivityNotFoundException) {
+            val any = android.content.Intent(android.content.Intent.ACTION_MAIN)
+                .addCategory(android.content.Intent.CATEGORY_APP_GALLERY)
+            try {
+                startActivity(any)
+            } catch (_: android.content.ActivityNotFoundException) {
+                Toast.makeText(this, "No gallery app found", Toast.LENGTH_SHORT).show()
+            }
+        }
     }
 
     private fun shutterButton(): View = View(this).apply {
@@ -1363,6 +1356,90 @@ class MainActivity : AppCompatActivity(), CameraEngine.Callback {
         refreshThumbnail(uri)
         statusText.text = "$message · DCIM/NijatvaCamera"
         Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
+        if (externalCapture != null) deliverToRequester(uri)
+    }
+
+    /**
+     * A second capture request can arrive while the camera is already open: the
+     * activity is singleTop, so the request comes here rather than to onCreate.
+     */
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        readCaptureIntent(intent)
+    }
+
+    /**
+     * Turns an ACTION_IMAGE_CAPTURE or ACTION_VIDEO_CAPTURE request into a normal
+     * session in the right mode.
+     *
+     * Returns true when the intent was a capture request, so the caller can stop
+     * doing anything else with it.
+     */
+    private fun readCaptureIntent(incoming: Intent?): Boolean {
+        if (incoming == null) return false
+        val video = when (incoming.action) {
+            MediaStore.ACTION_IMAGE_CAPTURE -> false
+            MediaStore.ACTION_VIDEO_CAPTURE -> true
+            else -> return false
+        }
+        externalCapture = ExternalCapture(video = video, output = outputUriOf(incoming))
+        val wanted = if (video) Mode.VIDEO else Mode.PHOTO
+        if (currentMode != wanted) selectMode(wanted)
+        return true
+    }
+
+    /** EXTRA_OUTPUT, read the way the API level requires. */
+    private fun outputUriOf(incoming: Intent): Uri? =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            incoming.getParcelableExtra(MediaStore.EXTRA_OUTPUT, Uri::class.java)
+        } else {
+            @Suppress("DEPRECATION")
+            incoming.getParcelableExtra(MediaStore.EXTRA_OUTPUT)
+        }
+
+    /**
+     * Hands the finished shot to the app that asked for it.
+     *
+     * With EXTRA_OUTPUT the bytes are copied into the caller's uri, which is what the
+     * camera contract means by that extra. Without it the caller gets a small bitmap
+     * in the "data" extra, the older half of the same contract. Either way the
+     * activity finishes, because the caller is waiting on a result.
+     */
+    private fun deliverToRequester(saved: Uri) {
+        val request = externalCapture ?: return
+        externalCapture = null
+        Thread {
+            if (request.output != null) {
+                val ok = try {
+                    contentResolver.openOutputStream(request.output)?.use { out ->
+                        contentResolver.openInputStream(saved)?.use { input -> input.copyTo(out) }
+                    }
+                    true
+                } catch (_: Exception) {
+                    false
+                }
+                runOnUiThread {
+                    setResult(
+                        if (ok) RESULT_OK else RESULT_CANCELED,
+                        Intent().putExtra(MediaStore.EXTRA_OUTPUT, request.output),
+                    )
+                    finish()
+                }
+            } else {
+                val thumb = try {
+                    contentResolver.loadThumbnail(saved, android.util.Size(640, 640), null)
+                } catch (_: Exception) {
+                    null
+                }
+                runOnUiThread {
+                    val result = Intent()
+                    if (thumb != null) result.putExtra("data", thumb)
+                    setResult(if (thumb != null) RESULT_OK else RESULT_CANCELED, result)
+                    finish()
+                }
+            }
+        }.start()
     }
 
     /**
@@ -1425,9 +1502,6 @@ class MainActivity : AppCompatActivity(), CameraEngine.Callback {
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).roundToInt()
 
     private companion object {
-        /** The other two apps in the suite; asked for by package, not by action. */
-        const val GALLERY_PACKAGE = "com.nijatva.gallery"
-        const val PHOTOS_PACKAGE = "com.nijatva.photos"
         const val REQUEST_CAMERA = 101
         const val REQUEST_AUDIO = 102
         const val EXPOSURE_SWIPE_STEP_DP = 56
