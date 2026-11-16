@@ -159,3 +159,54 @@ Not modelled yet: rotation between frames, GPU fusion, zero shutter lag.
 - Still open: the frequency-domain merge, better demosaic, local contrast and
   sharpening in native, a measured noise model, and a capture mode that calls the
   pipeline.
+
+## Interface, appearance and the 0.4.0 release
+
+- **Layout that follows the site.** The viewfinder chrome was rebuilt: 56dp top
+  bar, a snapping mode strip with MORE at the end, a zoom pill that only appears
+  when the device really zooms, and a 96dp control row. In landscape the control
+  row moves to the right edge.
+- **MORE grid.** Every mode as an icon-and-caption tile over a near-black sheet,
+  with the mode strip repeated along the bottom and the same four levels of
+  hierarchy as the site.
+- **Appearance panel and Developer page.** Theme (System / Dark / Light / Black)
+  and Accent (Green / Saffron / Indigo), applied and saved on tap; the Developer
+  page carries the profile card, the figures, the contact rows and the GitHub
+  button. `Palette` holds the colours in one place, and `Palette.onAccent()` picks
+  dark or white text by WCAG luminance so every accent stays legible.
+- **Adaptive launcher icon**, with a monochrome layer for themed icons, and the app
+  renamed to Nijatva Camera / Nijatva Camera Lite.
+- **Horizon tick.** The level line no longer flickers - hysteresis at 0.5 and 1.5
+  degrees - and one short haptic tick fires when the horizon comes straight.
+- **Watermark and swipe exposure.** "Shot on Nijatva" can be stamped on merged
+  photos; dragging one finger up or down on the preview moves exposure
+  compensation, one step per 56dp, and stands down while a pinch is in progress.
+- **Astro daylight gate.** Astro fixes a 2-8 s exposure, so `AstroGate` refuses a
+  bright scene using the camera's own AE (exposure time times ISO, threshold
+  50,000) instead of producing a white frame.
+- **Back closes overlays**, the focus reticle retires after 1.6 s, and the
+  recording clock stays visible in Pro mode.
+- **Settings follow the accent**, including the switches, instead of the old
+  hardcoded blue.
+
+## Native pipeline: measured noise and a displayable output
+
+- **Real noise model.** `NoiseModel.kt` reads `SENSOR_NOISE_PROFILE` - an array of
+  `android.util.Pair`, one (slope, offset) per channel, in normalised units - and
+  converts it to the pipeline's `var(DN) = A * DN + B` with `A = S * white` and
+  `B = O * white^2`. The merge weights are 1/variance, so this is the difference
+  between a smooth stack and a grainy one. Devices that publish no profile keep
+  the placeholder.
+- **ARGB output.** The pipeline used to return only a 16-bit TIFF, which Android
+  cannot display, so no capture mode could use it. `developBurst` is now split into
+  a format-free core plus two outputs: the TIFF as before, and
+  `developBurstToArgb` returning packed `0xFFRRGGBB` through
+  `nativeProcessRawFramesArgb` and `RawPipeline.processToBitmap`.
+- **Dead code removed.** `processor.cpp`'s `nativeProcessRawFrames` processed
+  nothing and returned true without writing a file; it, its Kotlin wrapper and its
+  CMake entry are gone.
+- **Host test for the new path.** `tests/argb_test.cpp` checks opaque pixels and
+  that an 18% grey card lands on 117/117/117 (0.459 sRGB), matching the TIFF path.
+- Still open: a capture mode that calls the pipeline, the frequency-domain merge,
+  Malvar-He-Cutler demosaic, and local contrast in native.
+
