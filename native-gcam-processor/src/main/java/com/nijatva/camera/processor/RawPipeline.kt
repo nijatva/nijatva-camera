@@ -59,9 +59,12 @@ class RawPipeline(private val engine: GcamEngine = GcamEngine()) {
             meta[base + 4] = wb[2]
             meta[base + 5] = black
             meta[base + 6] = white
-            // Placeholder noise model: var(DN) = A*DN + B. Replace with measured values (Part 4).
-            meta[base + 7] = NOISE_A_PLACEHOLDER
-            meta[base + 8] = NOISE_B_PLACEHOLDER
+            // The sensor's own noise profile, converted to raw DN. The placeholder
+            // is only used by a device that does not publish one, where a merge
+            // weight of 1/variance would otherwise be nonsense.
+            val noise = NoiseModel.fromResult(res, white)
+            meta[base + 7] = noise?.a ?: NOISE_A_PLACEHOLDER
+            meta[base + 8] = noise?.b ?: NOISE_B_PLACEHOLDER
             meta[base + 9] = stride.toFloat()
             // COLOR_CORRECTION_TRANSFORM, row-major, camera RGB -> linear sRGB.
             val ccm = res.get(android.hardware.camera2.CaptureResult.COLOR_CORRECTION_TRANSFORM)

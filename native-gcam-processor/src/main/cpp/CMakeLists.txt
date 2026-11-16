@@ -2,7 +2,6 @@ cmake_minimum_required(VERSION 3.22)
 project(gcamprocessor LANGUAGES CXX)
 
 add_library(gcamprocessor SHARED
-        processor.cpp
         raw_develop.cpp
         pipeline_core.cpp
         pipeline_jni.cpp)

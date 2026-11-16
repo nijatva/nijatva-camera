@@ -36,4 +36,7 @@ android {
 }
 
 dependencies {
+    // The noise-model conversion and the pipeline bookkeeping are pure Kotlin, so
+    // they are covered by JVM tests rather than by installing the app.
+    testImplementation 'junit:junit:4.13.2'
 }

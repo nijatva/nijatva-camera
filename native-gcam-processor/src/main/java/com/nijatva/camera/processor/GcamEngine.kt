@@ -11,16 +11,6 @@ class GcamEngine {
     }
 
     /**
-     * @param buffers direct ByteBuffers holding 16-bit Bayer RAW data (RAW_SENSOR)
-     */
-    external fun nativeProcessRawFrames(
-        buffers: Array<ByteBuffer>,
-        width: Int,
-        height: Int,
-        outputPath: String
-    ): Boolean
-
-    /**
      * Develops one RAW plane to packed ARGB_8888 pixels (see raw_develop.cpp).
      * Returns null if the native side rejects the input.
      */
@@ -48,13 +38,4 @@ class GcamEngine {
         outputPath: String
     ): FloatArray?
 
-    fun processFrames(
-        buffers: List<ByteBuffer>,
-        width: Int,
-        height: Int,
-        outputPath: String
-    ): Boolean {
-        require(buffers.all { it.isDirect }) { "RAW buffers must be direct ByteBuffers" }
-        return nativeProcessRawFrames(buffers.toTypedArray(), width, height, outputPath)
-    }
 }
