@@ -3,6 +3,8 @@ package com.nijatva.camera
 import android.Manifest
 import android.content.pm.PackageManager
 import android.graphics.Color
+import android.app.Dialog
+import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.Bundle
@@ -612,7 +614,10 @@ class MainActivity : AppCompatActivity(), CameraEngine.Callback {
         WindowCompat.setDecorFitsSystemWindows(window, false)
         ViewCompat.setOnApplyWindowInsetsListener(root) { _, insets ->
             val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
-            if (::modesGrid.isInitialized) modesGrid.setBottomInset(bars.bottom)
+            if (::modesGrid.isInitialized) {
+                modesGrid.setBottomInset(bars.bottom)
+                modesGrid.setTopInset(bars.top)
+            }
             topBar.updatePadding(top = bars.top + dp(4))
             bottomBar.updatePadding(bottom = dp(12) + bars.bottom)
             insets
@@ -858,21 +863,57 @@ class MainActivity : AppCompatActivity(), CameraEngine.Callback {
      * Settings for capture behaviour, Appearance for theme and accent, Developer
      * for the profile page.
      */
+    /**
+     * The hamburger menu.
+     *
+     * Built by hand rather than with AlertDialog.Builder: the platform list dialog
+     * arrives with its own grey panel and typography, which on this screen looked
+     * like a dialog from a different app dropped on top of the viewfinder.
+     */
     private fun openMenu() {
-        val items = arrayOf(
-            getString(R.string.menu_settings),
-            getString(R.string.menu_appearance),
-            getString(R.string.menu_developer),
+        val entries = listOf(
+            getString(R.string.menu_settings) to { openSettings() },
+            getString(R.string.menu_appearance) to { openAppearance() },
+            getString(R.string.menu_developer) to { openDeveloper() },
         )
-        AlertDialog.Builder(this)
-            .setItems(items) { _, which ->
-                when (which) {
-                    0 -> openSettings()
-                    1 -> openAppearance()
-                    2 -> openDeveloper()
-                }
+
+        val card = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(6), dp(10), dp(6), dp(10))
+            background = GradientDrawable().apply {
+                cornerRadius = dp(20).toFloat()
+                setColor(Palette.surface)
+                setStroke(dp(1), Palette.hairline)
             }
-            .show()
+        }
+
+        val dialog = Dialog(this, android.R.style.Theme_Translucent_NoTitleBar).apply {
+            window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+            window?.setDimAmount(0.45f)
+            window?.setLayout(dp(260), ViewGroup.LayoutParams.WRAP_CONTENT)
+        }
+
+        entries.forEach { (label, action) ->
+            card.addView(TextView(this).apply {
+                text = label
+                setTextColor(Palette.onSurface)
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
+                setPadding(dp(16), dp(14), dp(16), dp(14))
+                // The platform's own ripple, so a tap feels like a tap.
+                val out = TypedValue()
+                theme.resolveAttribute(android.R.attr.selectableItemBackground, out, true)
+                setBackgroundResource(out.resourceId)
+                setOnClickListener {
+                    dialog.dismiss()
+                    action()
+                }
+            }, LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+            ))
+        }
+
+        dialog.setContentView(card)
+        dialog.show()
     }
 
     private fun openAppearance() {

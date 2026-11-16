@@ -37,8 +37,17 @@ class ModesGrid(context: Context) : FrameLayout(context) {
 
     private val column = LinearLayout(context).apply {
         orientation = LinearLayout.VERTICAL
+        gravity = Gravity.CENTER_VERTICAL
         setPadding(dp(16), dp(24), dp(16), dp(12))
     }
+    private val scroller = ScrollView(context).apply {
+        isVerticalScrollBarEnabled = false
+        // fillViewport plus CENTER_VERTICAL centres the tiles in the space between
+        // the header and the strip. Without it a tall phone shows the grid jammed at
+        // the top with a screen of empty black underneath.
+        isFillViewport = true
+    }
+    private var topInset = 0
     private val strip = ModeStrip(context)
     private val tiles = mutableListOf<Pair<Mode, LinearLayout>>()
     private var columns = 3
@@ -78,9 +87,10 @@ class ModesGrid(context: Context) : FrameLayout(context) {
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
         ).apply { bottomMargin = dp(8) })
 
-        val scroller = ScrollView(context).apply { isVerticalScrollBarEnabled = false }
         scroller.addView(column)
         addView(scroller, LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+        // Keep the tiles clear of the strip at the bottom and the status bar at the top.
+        scroller.setPadding(0, 0, 0, dp(84))
 
         strip.onModeSelected = { mode -> onModeSelected?.invoke(mode) }
         strip.onMore = { onMoreTapped?.invoke() }
@@ -134,6 +144,13 @@ class ModesGrid(context: Context) : FrameLayout(context) {
      */
     fun setBottomInset(px: Int) {
         strip.setPadding(strip.paddingLeft, strip.paddingTop, strip.paddingRight, px)
+    }
+
+    /** Keeps the header out from under the status bar. */
+    fun setTopInset(px: Int) {
+        if (px == topInset) return
+        topInset = px
+        column.setPadding(column.paddingLeft, px + dp(16), column.paddingRight, column.paddingBottom)
     }
 
     fun open() {
