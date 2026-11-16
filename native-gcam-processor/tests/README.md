@@ -7,7 +7,8 @@ the pipeline sources directly, so they exercise the same code the library ships.
 cd native-gcam-processor
 c++ -O2 -std=c++17 -o /tmp/synthetic tests/synthetic_test.cpp src/main/cpp/pipeline_core.cpp
 c++ -O2 -std=c++17 -o /tmp/grey      tests/grey_card_test.cpp   src/main/cpp/pipeline_core.cpp
-/tmp/synthetic && /tmp/grey
+c++ -O2 -std=c++17 -o /tmp/argb      tests/argb_test.cpp        src/main/cpp/pipeline_core.cpp
+/tmp/synthetic && /tmp/grey && /tmp/argb
 ```
 
 `synthetic_test.cpp` builds a 6-frame burst with known shifts and known noise, then

@@ -396,8 +396,12 @@ bool writeTiff16Rgb(const std::string& path, const std::vector<uint16_t>& rgb, i
 
 }  // namespace
 
-bool developBurst(const std::vector<FrameInput>& frames, int width, int height,
-                  const std::string& tiffPath, BurstStats* stats) {
+namespace {
+
+// Stages 0-6: everything up to the finished 16-bit RGB image, with no output format
+// attached, so the TIFF writer and the ARGB path share one implementation.
+bool developBurstCore(const std::vector<FrameInput>& frames, int width, int height,
+                      std::vector<uint16_t>& rgb, BurstStats* stats) {
     const int n = static_cast<int>(frames.size());
     if (n < 1 || n > kMaxFrames) return false;
     if (width < 32 || height < 32 || (width & 1) || (height & 1)) return false;
@@ -455,17 +459,48 @@ bool developBurst(const std::vector<FrameInput>& frames, int width, int height,
 
     // Stages 5-6: demosaic and white balance.
     t = Clock::now();
-    std::vector<uint16_t> rgb;
     demosaicWb(merged, width, height, frames[ref].meta, rgb);
     st.demosaicMs = msSince(t);
 
-    // Output.
-    t = Clock::now();
+    if (stats) *stats = st;
+    return true;
+}
+
+}  // namespace
+
+bool developBurst(const std::vector<FrameInput>& frames, int width, int height,
+                  const std::string& tiffPath, BurstStats* stats) {
+    std::vector<uint16_t> rgb;
+    BurstStats st;
+    if (!developBurstCore(frames, width, height, rgb, &st)) return false;
+
+    const auto t = Clock::now();
     const bool ok = writeTiff16Rgb(tiffPath, rgb, width, height);
     st.writeMs = msSince(t);
-
     if (stats) *stats = st;
     return ok;
+}
+
+bool developBurstToArgb(const std::vector<FrameInput>& frames, int width, int height,
+                        std::vector<uint32_t>& out, BurstStats* stats) {
+    std::vector<uint16_t> rgb;
+    BurstStats st;
+    if (!developBurstCore(frames, width, height, rgb, &st)) return false;
+
+    const auto t = Clock::now();
+    const size_t pixels = static_cast<size_t>(width) * height;
+    out.resize(pixels);
+    for (size_t i = 0; i < pixels; ++i) {
+        // The demosaic stage already encoded to sRGB, so the top byte of each
+        // 16-bit channel is the 8-bit value Android expects.
+        const uint32_t r = rgb[i * 3 + 0] >> 8;
+        const uint32_t g = rgb[i * 3 + 1] >> 8;
+        const uint32_t b = rgb[i * 3 + 2] >> 8;
+        out[i] = 0xFF000000u | (r << 16) | (g << 8) | b;
+    }
+    st.writeMs = msSince(t);
+    if (stats) *stats = st;
+    return true;
 }
 
 }  // namespace gcam

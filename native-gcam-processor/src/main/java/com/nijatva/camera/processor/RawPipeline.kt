@@ -2,8 +2,10 @@ package com.nijatva.camera.processor
 
 import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.TotalCaptureResult
+import android.graphics.Bitmap
 import android.media.Image
 import java.io.File
+import java.nio.ByteBuffer
 
 /**
  * Runs the native burst pipeline on RAW_SENSOR images and writes a 16-bit linear TIFF.
@@ -27,30 +29,68 @@ class RawPipeline(private val engine: GcamEngine = GcamEngine()) {
      * Caller keeps ownership of the images and closes them afterwards.
      * Returns null if the native side rejects the input or the write fails.
      */
+    /**
+     * Develops the burst and returns it as a Bitmap, which is what a capture mode
+     * can actually save and show. Same stages as [process]; the only difference is
+     * the output format.
+     */
+    fun processToBitmap(
+        images: List<Image>,
+        results: List<TotalCaptureResult>,
+        characteristics: CameraCharacteristics,
+    ): Bitmap? {
+        val prepared = prepare(images, results, characteristics) ?: return null
+        val pixels = engine.nativeProcessRawFramesArgb(
+            prepared.buffers, prepared.meta, prepared.width, prepared.height
+        ) ?: return null
+        return Bitmap.createBitmap(
+            pixels, prepared.width, prepared.height, Bitmap.Config.ARGB_8888
+        )
+    }
+
     fun process(
         images: List<Image>,
         results: List<TotalCaptureResult>,
         characteristics: CameraCharacteristics,
         outputTiff: File
     ): Result? {
-        require(images.size == results.size && images.isNotEmpty()) { "One result per image" }
-        require(images.size <= 16) { "At most 16 frames" }
+        val prepared = prepare(images, results, characteristics) ?: return null
+        val buffers = prepared.buffers
+        val meta = prepared.meta
+        val width = prepared.width
+        val height = prepared.height
 
-        val width = images[0].width
-        val height = images[0].height
-        require(images.all { it.width == width && it.height == height }) { "All frames must match size" }
+        val out = engine.nativeProcessRawFramesV2(
+            buffers, meta, width, height, outputTiff.absolutePath
+        ) ?: return null
 
-        val buffers = Array(images.size) { i ->
-            images[i].planes[0].buffer.also { require(it.isDirect) { "Image plane must be direct" } }
-        }
-        val meta = FloatArray(images.size * META_STRIDE)
+        val n = images.size
+        return Result(
+            referenceIndex = out[0].toInt(),
+            shiftsX = IntArray(n) { out[5 + it * 3].toInt() },
+            shiftsY = IntArray(n) { out[5 + it * 3 + 1].toInt() },
+            exposureRatios = FloatArray(n) { out[5 + it * 3 + 2] },
+            alignMs = out[1],
+            mergeMs = out[2],
+            demosaicMs = out[3],
+            writeMs = out[4]
+        )
+    }
+
+    /** Fills the flat metadata block the native side reads. */
+    private fun buildMeta(
+        images: List<Image>,
+        results: List<TotalCaptureResult>,
+        characteristics: CameraCharacteristics,
+        meta: FloatArray,
+    ) {
         val black = RawDeveloper.blackLevel(characteristics)
         val white = RawDeveloper.whiteLevel(characteristics)
         images.forEachIndexed { i, image ->
             val res = results[i]
             val wb = RawDeveloper.whiteBalanceGains(res)
             val stride = image.planes[0].rowStride
-            require(stride % 2 == 0) { "RowStride must be even for 16-bit RAW" }
+            if (stride % 2 != 0) return  // not a 16-bit RAW plane; the frame is dropped
             val base = i * META_STRIDE
             meta[base + 0] = (res.get(android.hardware.camera2.CaptureResult.SENSOR_SENSITIVITY) ?: 100).toFloat()
             meta[base + 1] = (res.get(android.hardware.camera2.CaptureResult.SENSOR_EXPOSURE_TIME) ?: 0L).toFloat()
@@ -75,22 +115,35 @@ class RawPipeline(private val engine: GcamEngine = GcamEngine()) {
                 } ?: if (row == col) 1f else 0f
             }
         }
+    }
 
-        val out = engine.nativeProcessRawFramesV2(
-            buffers, meta, width, height, outputTiff.absolutePath
-        ) ?: return null
+    private class Prepared(
+        val buffers: Array<ByteBuffer>,
+        val meta: FloatArray,
+        val width: Int,
+        val height: Int,
+    )
 
-        val n = images.size
-        return Result(
-            referenceIndex = out[0].toInt(),
-            shiftsX = IntArray(n) { out[5 + it * 3].toInt() },
-            shiftsY = IntArray(n) { out[5 + it * 3 + 1].toInt() },
-            exposureRatios = FloatArray(n) { out[5 + it * 3 + 2] },
-            alignMs = out[1],
-            mergeMs = out[2],
-            demosaicMs = out[3],
-            writeMs = out[4]
-        )
+    /**
+     * Everything both output formats need: the direct buffers, the flat metadata
+     * block, and the frame size. Returns null if the input is not a usable burst.
+     */
+    private fun prepare(
+        images: List<Image>,
+        results: List<TotalCaptureResult>,
+        characteristics: CameraCharacteristics,
+    ): Prepared? {
+        if (images.isEmpty() || images.size != results.size || images.size > 16) return null
+        val width = images[0].width
+        val height = images[0].height
+        if (images.any { it.width != width || it.height != height }) return null
+        if (width < 32 || height < 32) return null
+        val buffers = Array(images.size) { i ->
+            images[i].planes[0].buffer.also { if (!it.isDirect) return null }
+        }
+        val meta = FloatArray(images.size * META_STRIDE)
+        buildMeta(images, results, characteristics, meta)
+        return Prepared(buffers, meta, width, height)
     }
 
     companion object {

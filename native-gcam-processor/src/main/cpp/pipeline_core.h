@@ -33,4 +33,10 @@ struct BurstStats {
 bool developBurst(const std::vector<FrameInput>& frames, int width, int height,
                   const std::string& tiffPath, BurstStats* stats);
 
+// The same pipeline, but hands the pixels back as packed 0xFFRRGGBB values instead
+// of writing a file. Android cannot display the TIFF, so this is the entry point a
+// capture mode should use.
+bool developBurstToArgb(const std::vector<FrameInput>& frames, int width, int height,
+                        std::vector<uint32_t>& out, BurstStats* stats);
+
 }  // namespace gcam
