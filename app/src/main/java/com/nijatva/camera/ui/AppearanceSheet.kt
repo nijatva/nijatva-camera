@@ -60,7 +60,7 @@ class AppearanceSheet(
             orientation = LinearLayout.HORIZONTAL
             setPadding(0, dp(10), 0, dp(18))
         }
-        ThemeChoice.values().forEach { choice ->
+        ThemeChoice.values().forEachIndexed { index, choice ->
             val pill = pill(context.getString(choice.labelRes))
             pill.setOnClickListener {
                 settings = settings.copy(theme = choice)
@@ -68,9 +68,11 @@ class AppearanceSheet(
                 onChange(settings)
             }
             cards.add(choice to pill)
-            themeRow.addView(pill, LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
-            ).apply { rightMargin = dp(8) })
+            // Four themes are wider than a phone at wrap-content, and the last pill
+            // ends up a circle reading "Bl ac k". Equal shares fix that.
+            themeRow.addView(pill, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply {
+                if (index < ThemeChoice.values().lastIndex) marginEnd = dp(6)
+            })
         }
         root.addView(themeRow)
 
@@ -79,7 +81,7 @@ class AppearanceSheet(
             orientation = LinearLayout.HORIZONTAL
             setPadding(0, dp(10), 0, dp(14))
         }
-        AccentChoice.values().forEach { choice ->
+        AccentChoice.values().forEachIndexed { index, choice ->
             val swatch = swatch(context.getString(choice.labelRes), choice.argb)
             swatch.setOnClickListener {
                 settings = settings.copy(accent = choice)
@@ -87,9 +89,9 @@ class AppearanceSheet(
                 onChange(settings)
             }
             swatches.add(choice to swatch)
-            accentRow.addView(swatch, LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
-            ).apply { rightMargin = dp(10) })
+            accentRow.addView(swatch, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply {
+                if (index < AccentChoice.values().lastIndex) marginEnd = dp(6)
+            })
         }
         root.addView(accentRow)
 
@@ -131,11 +133,18 @@ class AppearanceSheet(
         setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
     }
 
+    /** One line, shrinking to fit: a wrapped label turns a pill into a circle. */
     private fun pill(text: String): TextView = TextView(context).apply {
         this.text = text
         setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
         gravity = Gravity.CENTER
-        setPadding(dp(18), dp(10), dp(18), dp(10))
+        maxLines = 1
+        isSingleLine = true
+        ellipsize = android.text.TextUtils.TruncateAt.END
+        androidx.core.widget.TextViewCompat.setAutoSizeTextTypeUniformWithConfiguration(
+            this, 10, 14, 1, TypedValue.COMPLEX_UNIT_SP,
+        )
+        setPadding(dp(12), dp(10), dp(12), dp(10))
         isClickable = true
     }
 
@@ -145,7 +154,13 @@ class AppearanceSheet(
         setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
         typeface = Typeface.create("sans-serif", Typeface.BOLD)
         gravity = Gravity.CENTER
-        setPadding(dp(18), dp(10), dp(18), dp(10))
+        maxLines = 1
+        isSingleLine = true
+        ellipsize = android.text.TextUtils.TruncateAt.END
+        androidx.core.widget.TextViewCompat.setAutoSizeTextTypeUniformWithConfiguration(
+            this, 10, 14, 1, TypedValue.COMPLEX_UNIT_SP,
+        )
+        setPadding(dp(12), dp(10), dp(12), dp(10))
         background = GradientDrawable().apply {
             cornerRadius = dp(20).toFloat()
             setColor(colour)

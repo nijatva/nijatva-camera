@@ -167,6 +167,15 @@ class ModesGrid(context: Context) : FrameLayout(context) {
         gravity = Gravity.CENTER_HORIZONTAL
         setPadding(0, dp(10), 0, dp(10))
         isClickable = true
+        isFocusable = true
+        contentDescription = context.getString(Modes.labelRes(mode))
+        // A ripple, so a tile answers the finger before the screen changes. The
+        // platform's own background is the cheapest way to get the right look on
+        // both light and dark themes.
+        val out = TypedValue()
+        if (context.theme.resolveAttribute(android.R.attr.selectableItemBackgroundBorderless, out, true)) {
+            setBackgroundResource(out.resourceId)
+        }
         addView(ImageView(context).apply {
             setImageResource(Modes.iconRes(mode))
             setColorFilter(Color.WHITE)

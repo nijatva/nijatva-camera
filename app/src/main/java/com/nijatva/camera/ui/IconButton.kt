@@ -27,6 +27,7 @@ class IconButton(context: Context) : View(context) {
     var kind: Kind = Kind.MENU
         set(value) {
             field = value
+            contentDescription = labelFor(value)
             invalidate()
         }
 
@@ -35,6 +36,34 @@ class IconButton(context: Context) : View(context) {
             field = value
             invalidate()
         }
+
+    /**
+     * What a screen reader says. Without this every control on the viewfinder is
+     * announced as "button", which is useless when the buttons are icon-only.
+     */
+    private fun labelFor(kind: Kind): String = when (kind) {
+        Kind.FLASH_OFF -> "Flash off"
+        Kind.FLASH_AUTO -> "Flash auto"
+        Kind.FLASH_ON -> "Flash on"
+        Kind.MENU -> "Menu"
+        Kind.FLIP -> "Switch camera"
+        Kind.GRID -> "Grid"
+        Kind.HDR -> "HDR"
+        Kind.THUMB -> "Last photo"
+        Kind.HDR_OFF -> "HDR off"
+        Kind.HDR_ENHANCED -> "HDR enhanced"
+        Kind.TIMER_OFF -> "Timer off"
+        Kind.TIMER_3 -> "Timer three seconds"
+        Kind.TIMER_10 -> "Timer ten seconds"
+        Kind.RATIO_4_3 -> "Aspect ratio four by three"
+        Kind.RATIO_16_9 -> "Aspect ratio sixteen by nine"
+        Kind.CAMERA -> "Photo mode"
+        Kind.VIDEO -> "Video mode"
+        Kind.GEAR -> "Settings"
+    }
+
+    /** Pressed state, so a tap registers visually before the screen changes. */
+    private var pressed: Boolean = false
 
     private val density = resources.displayMetrics.density
     private val discPaint = Paint(Paint.ANTI_ALIAS_FLAG)
@@ -49,6 +78,16 @@ class IconButton(context: Context) : View(context) {
 
     init {
         isClickable = true
+        isFocusable = true
+        contentDescription = labelFor(kind)
+    }
+
+    override fun setPressed(pressed: Boolean) {
+        super.setPressed(pressed)
+        if (this.pressed != pressed) {
+            this.pressed = pressed
+            invalidate()
+        }
     }
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
@@ -61,8 +100,12 @@ class IconButton(context: Context) : View(context) {
         val cy = height / 2f
         val radius = minOf(cx, cy)
 
-        discPaint.color = if (active) Color.argb(235, 255, 255, 255) else Color.argb(90, 0, 0, 0)
-        canvas.drawCircle(cx, cy, radius, discPaint)
+        discPaint.color = when {
+            active -> Color.argb(235, 255, 255, 255)
+            pressed -> Color.argb(150, 255, 255, 255)
+            else -> Color.argb(90, 0, 0, 0)
+        }
+        canvas.drawCircle(cx, cy, if (pressed) radius * 0.94f else radius, discPaint)
 
         val ink = if (active) Color.parseColor("#101418") else Color.WHITE
         glyphPaint.color = ink

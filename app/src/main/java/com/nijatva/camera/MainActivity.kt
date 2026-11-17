@@ -255,10 +255,8 @@ class MainActivity : AppCompatActivity(), CameraEngine.Callback {
             )
             // The analysis frame is sensor-native; turn it to match the upright preview.
             peakingOverlay.setImageBitmap(com.nijatva.camera.camera.Orientation.rotate(mask, rotationDegrees))
-            val lp = peakingOverlay.layoutParams
-            if (preview.width > 0 && (lp.width != preview.width || lp.height != preview.height)) {
-                peakingOverlay.layoutParams = FrameLayout.LayoutParams(preview.width, preview.height, Gravity.CENTER)
-            }
+            // The view already fills the preview area; CENTER_CROP does the rest, so
+            // there is nothing to resize here.
             peakingOverlay.visibility = View.VISIBLE
         }
     }
@@ -306,9 +304,14 @@ class MainActivity : AppCompatActivity(), CameraEngine.Callback {
 
         // Peaking sits over the preview, sized to the preview each time it changes.
         peakingOverlay = android.widget.ImageView(this).apply {
-            scaleType = android.widget.ImageView.ScaleType.FIT_XY
+            // The preview is a SurfaceView in cover mode: it fills the screen and
+            // crops the stream. The peaking mask comes from the same stream, so it
+            // has to be cropped identically - FIT_XY stretched it to the view and put
+            // the highlights in the wrong place, worst in landscape.
+            scaleType = android.widget.ImageView.ScaleType.CENTER_CROP
             visibility = View.GONE
             isClickable = false
+            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
         }
         root.addView(peakingOverlay, FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT, Gravity.CENTER
@@ -651,6 +654,8 @@ class MainActivity : AppCompatActivity(), CameraEngine.Callback {
         clipToOutline = true
         outlineProvider = android.view.ViewOutlineProvider.BACKGROUND
         scaleType = android.widget.ImageView.ScaleType.CENTER_CROP
+        contentDescription = "Last photo. Long press to edit"
+        isFocusable = true
         setOnClickListener { openLastShot() }
         // Long press hands the shot to an editor instead, so the two taps do the two
         // things people actually want from a thumbnail.
@@ -721,6 +726,19 @@ class MainActivity : AppCompatActivity(), CameraEngine.Callback {
             setStroke(dp(5), Color.argb(150, 255, 255, 255))
         }
         background = shutterRing
+        contentDescription = "Shutter"
+        isFocusable = true
+        // The shutter is the one control that must feel like a button: it shrinks a
+        // little under the finger and springs back, so the press is confirmed even
+        // before the capture starts.
+        setOnTouchListener { view, event ->
+            when (event.actionMasked) {
+                android.view.MotionEvent.ACTION_DOWN -> view.animate().scaleX(0.92f).scaleY(0.92f).setDuration(90).start()
+                android.view.MotionEvent.ACTION_UP,
+                android.view.MotionEvent.ACTION_CANCEL -> view.animate().scaleX(1f).scaleY(1f).setDuration(120).start()
+            }
+            false
+        }
         setOnClickListener {
             if (settings.vibrationOnShutter) {
                 window.decorView.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
