@@ -505,9 +505,20 @@ class CameraEngine(
                 if (upright !== raw) raw.recycle()
                 // Colour and tone for merged output only. Single-frame JPEGs from the
                 // camera already carry the HAL's own processing, so they are left alone.
+                // The look is the user's choice; the lens adjusts it, because one set
+                // of numbers for a main, an ultra-wide, a telephoto and a selfie
+                // camera is a compromise none of them want.
+                val lens = com.nijatva.camera.grade.LensTuning.classify(
+                    facing = caps?.facing ?: android.hardware.camera2.CameraCharacteristics.LENS_FACING_BACK,
+                    focalLength = caps?.focalLength ?: 0f,
+                    sensorWidthMm = caps?.physicalWidthMm ?: 0f,
+                )
                 val graded = com.nijatva.camera.grade.ColorGrade.applyTo(
                     upright,
-                    com.nijatva.camera.grade.ColorGrade.Look.of(look),
+                    com.nijatva.camera.grade.LensTuning.adjust(
+                        com.nijatva.camera.grade.ColorGrade.Look.of(look),
+                        lens,
+                    ),
                 )
                 val uri = saver.saveJpeg(
                     graded,
