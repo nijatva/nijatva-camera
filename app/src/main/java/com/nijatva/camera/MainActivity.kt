@@ -50,7 +50,8 @@ import com.nijatva.camera.settings.AccentChoice
 import com.nijatva.camera.settings.ThemeChoice
 import com.nijatva.camera.ui.AppearanceSheet
 import com.nijatva.camera.ui.AutoFitSurfaceView
-import com.nijatva.camera.ui.DeveloperPage
+import com.nijatva.signature.Signature
+import com.nijatva.signature.SignatureTheme
 import com.nijatva.camera.ui.Palette
 import com.nijatva.camera.ui.GridOverlay
 import com.nijatva.camera.ui.IconButton
@@ -81,7 +82,6 @@ class MainActivity : AppCompatActivity(), CameraEngine.Callback {
     private lateinit var modeStrip: com.nijatva.camera.ui.ModeStrip
     private lateinit var zoomPill: com.nijatva.camera.ui.ZoomPill
     private lateinit var modesGrid: com.nijatva.camera.ui.ModesGrid
-    private lateinit var developerPage: DeveloperPage
     private lateinit var controls: LinearLayout
     private lateinit var rightHost: FrameLayout
     private lateinit var flipButton: IconButton
@@ -104,9 +104,7 @@ class MainActivity : AppCompatActivity(), CameraEngine.Callback {
      * astro and RAW are still in the engine, just not offered. The rule itself
      * lives in Modes, so it can be unit tested.
      */
-    /** The mode strip, in the user's arrangement once they have made one. */
-    private var stripModes: List<Mode> =
-        com.nijatva.camera.camera.Modes.stripModes(BuildConfig.LITE, emptyList())
+    private val stripModes: List<Mode> = com.nijatva.camera.camera.Modes.stripModes(BuildConfig.LITE)
     private val gridModes: List<Mode> = com.nijatva.camera.camera.Modes.gridModes(BuildConfig.LITE)
     private var settings = Settings()
 
@@ -187,17 +185,14 @@ class MainActivity : AppCompatActivity(), CameraEngine.Callback {
     /**
      * Back closes whatever overlay is open before it closes the app.
      *
-     * The MORE grid and the Developer page are overlays inside this activity, not
-     * activities of their own, so without this a back press while either was open
-     * finished the activity and killed the camera session.
+     * The MORE grid is an overlay inside this activity, not an activity of its own, so
+     * without this a back press while it was open finished the activity and killed the
+     * camera session.
      */
     private fun installBackHandling() {
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
                 when {
-                    ::developerPage.isInitialized && developerPage.visibility == View.VISIBLE ->
-                        closeDeveloper()
-
                     ::modesGrid.isInitialized && modesGrid.visibility == View.VISIBLE ->
                         closeModesGrid()
 
@@ -374,10 +369,7 @@ class MainActivity : AppCompatActivity(), CameraEngine.Callback {
             }
             visibility = View.GONE
         }
-        zoomPill.bind(
-            com.nijatva.camera.ui.ZoomStops.stops(engine.maxZoomRatio()),
-            1f,
-        )
+        zoomPill.bind(listOf(1f, 2f), 1f)
 
         val quickRow = FrameLayout(this).apply { setPadding(0, 0, 0, dp(6)) }
         quickRow.addView(zoomPill, FrameLayout.LayoutParams(
@@ -507,7 +499,6 @@ class MainActivity : AppCompatActivity(), CameraEngine.Callback {
                 closeModesGrid()
             }
             onMoreTapped = { closeModesGrid() }
-            onModeDropped = { mode -> addModeToStrip(mode) }
         }
         modesGrid.bind(
             modes = gridModes,
@@ -515,13 +506,6 @@ class MainActivity : AppCompatActivity(), CameraEngine.Callback {
             columns = if (isTablet()) 4 else 3,
         )
         root.addView(modesGrid, FrameLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
-        ))
-
-        developerPage = DeveloperPage(this).apply {
-            onClose = { closeDeveloper() }
-        }
-        root.addView(developerPage, FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
         ))
 
@@ -567,9 +551,7 @@ class MainActivity : AppCompatActivity(), CameraEngine.Callback {
             override fun onScale(detector: ScaleGestureDetector): Boolean {
                 val next = (engine.currentSettings.zoom * detector.scaleFactor).coerceIn(1f, 8f)
                 engine.updateSettings { it.copy(zoom = next) }
-                // While the fingers are down, show what the zoom actually is: 2.4x,
-                // 3x, and so on, rather than jumping between two fixed labels.
-                zoomPill.showRatio(next)
+                zoomPill.select(if (next >= 1.6f) 2f else 1f)
                 return true
             }
         })
@@ -885,32 +867,6 @@ class MainActivity : AppCompatActivity(), CameraEngine.Callback {
         modesGrid.open()
     }
 
-    /**
-     * Adds a dragged mode to the strip and remembers the arrangement.
-     *
-     * The mode moves to the end, which is what a drop on the strip means: the ones
-     * before it keep their order, so a drop never scrambles what is already there.
-     */
-    private fun addModeToStrip(mode: Mode) {
-        val next = com.nijatva.camera.camera.Modes.withMode(BuildConfig.LITE, settings.stripOrder, mode)
-        settings = settings.copy(stripOrder = next)
-        store.save(settings)
-        stripModes = com.nijatva.camera.camera.Modes.stripModes(BuildConfig.LITE, next)
-        modeStrip.bind(stripModes)
-        modeStrip.setSelected(currentMode)
-        modesGrid.bind(
-            modes = gridModes,
-            stripModes = stripModes,
-            columns = if (isTablet()) 4 else 3,
-        )
-        modesGrid.setSelected(currentMode)
-        Toast.makeText(
-            this,
-            getString(com.nijatva.camera.camera.Modes.labelRes(mode)) + " added to the strip",
-            Toast.LENGTH_SHORT,
-        ).show()
-    }
-
     private fun closeModesGrid() {
         modesGrid.close()
         modeStrip.setMoreHighlighted(false)
@@ -1035,18 +991,22 @@ class MainActivity : AppCompatActivity(), CameraEngine.Callback {
     private fun refreshAccent() {
         modeStrip.setSelected(currentMode)
         modesGrid.setSelected(currentMode)
-        zoomPill.endRatio()
-        zoomPill.select(engine.currentSettings.zoom)
+        zoomPill.select(if (engine.currentSettings.zoom >= 1.6f) 2f else 1f)
         ringColor = 0
         updateShutterRing()
     }
 
+    /**
+     * The developer card comes from the shared signature kit, so the camera shows the
+     * same name, figures and links as every other app in the suite.
+     */
     private fun openDeveloper() {
-        developerPage.open()
-    }
-
-    private fun closeDeveloper() {
-        developerPage.close()
+        // The card is drawn by the shared kit, so hand it this app's current surface
+        // and accent first: a light card inside a dark viewfinder would read as a bug.
+        SignatureTheme.setTheme(this,
+            if (Palette.isLight) SignatureTheme.LIGHT else SignatureTheme.DARK)
+        SignatureTheme.setAccent(this, settings.accent.argb)
+        startActivity(Signature.developer(this))
     }
 
     private fun isSystemDark(): Boolean =
@@ -1082,7 +1042,6 @@ class MainActivity : AppCompatActivity(), CameraEngine.Callback {
         engine.jpegQuality = settings.jpegQuality
         engine.watermark = settings.watermark
         engine.autoHdr = settings.autoHdr
-        engine.matchPreview = settings.matchPreview
         engine.portraitBlur = settings.portraitBlur
         engine.portraitFocus = settings.portraitFocus
         engine.look = settings.look
