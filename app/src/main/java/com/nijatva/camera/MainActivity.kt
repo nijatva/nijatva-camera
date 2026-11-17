@@ -1047,6 +1047,8 @@ class MainActivity : AppCompatActivity(), CameraEngine.Callback {
         engine.jpegQuality = settings.jpegQuality
         engine.watermark = settings.watermark
         engine.autoHdr = settings.autoHdr
+        engine.portraitBlur = settings.portraitBlur
+        engine.portraitFocus = settings.portraitFocus
         engine.look = settings.look
         engine.tuning = settings.tuning
 

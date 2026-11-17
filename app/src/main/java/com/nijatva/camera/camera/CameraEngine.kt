@@ -152,6 +152,12 @@ class CameraEngine(
     /** Take a plain photo as a merged burst when the scene is losing highlights. */
     var autoHdr: Boolean = true
 
+    /** Soften the background of the finished photo. */
+    var portraitBlur: Boolean = false
+
+    /** Share of the shorter side that stays sharp when the background is softened. */
+    var portraitFocus: Float = 0.42f
+
     /** Share of the last analysed frame that was at the top of the range. */
     @Volatile private var sceneClipped: Float = 0f
 
@@ -556,8 +562,9 @@ class CameraEngine(
                         lens,
                     ),
                 )
+                val finished = softenBackground(graded)
                 val uri = saver.saveJpeg(
-                    graded,
+                    finished,
                     quality = jpegQuality,
                     label = capturedLabel.uppercase(),
                     mirror = shouldMirror(),
@@ -884,6 +891,27 @@ class CameraEngine(
         } finally {
             image.close()
         }
+    }
+
+    /**
+     * Softens the background of a finished photo.
+     *
+     * The mask is radial for now - sharp in the middle, blurred at the edges - which
+     * is the honest version of this effect on a phone with no depth sensor. A device
+     * that publishes DEPTH16 can hand a real mask to PortraitBlur.apply instead, and
+     * nothing else has to change.
+     */
+    private fun softenBackground(bitmap: android.graphics.Bitmap): android.graphics.Bitmap {
+        if (!portraitBlur) return bitmap
+        val w = bitmap.width
+        val h = bitmap.height
+        val px = IntArray(w * h)
+        bitmap.getPixels(px, 0, w, 0, 0, w, h)
+        val mask = com.nijatva.camera.grade.PortraitBlur.radialMask(w, h, focus = portraitFocus)
+        com.nijatva.camera.grade.PortraitBlur.apply(px, w, h, mask, 1f)
+        val out = android.graphics.Bitmap.createBitmap(px, w, h, android.graphics.Bitmap.Config.ARGB_8888)
+        if (out !== bitmap) bitmap.recycle()
+        return out
     }
 
     private fun restartPreview() {

@@ -253,6 +253,27 @@ class SettingsSheet(
             push()
         })
 
+        content.addView(switchRow(
+            title = "Portrait blur",
+            subtitle = "Softens the background of merged photos, sharp in the middle",
+            checked = settings.portraitBlur,
+        ) { checked ->
+            settings = settings.copy(portraitBlur = checked)
+            push()
+            rebuild()
+        })
+
+        if (settings.portraitBlur) {
+            content.addView(tuningRow(
+                title = "Sharp area",
+                subtitle = "How much of the middle stays in focus",
+                value = (settings.portraitFocus - 0.5f) * 4f,
+            ) { v ->
+                settings = settings.copy(portraitFocus = (0.5f + v * 0.125f).coerceIn(0.25f, 0.75f))
+                push()
+            })
+        }
+
         content.addView(segmentedRow(
             title = context.getString(R.string.look_title),
             subtitle = context.getString(R.string.look_subtitle),
