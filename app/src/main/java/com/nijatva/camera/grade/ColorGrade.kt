@@ -33,6 +33,10 @@ object ColorGrade {
         val chromaNr: Float = 0.35f,
         /** Widest colour difference the saturation stage may produce, 0..1. */
         val chromaCeiling: Float = CHROMA_CEILING,
+        /** Lifts or lowers the whole frame, -1..1. Applied after the curve. */
+        val brightness: Float = 0f,
+        /** Strength of the midtone S-curve, -1..1. 0 is the normal curve. */
+        val contrast: Float = 0f,
     ) {
         companion object {
             fun of(preset: LookPreset): Look = Look(
@@ -82,7 +86,7 @@ object ColorGrade {
         val small = downsample(luma, w, h, sw, sh)
         val smallBlur = boxBlur(small, sw, sh, look.blurRadius)
 
-        val curve = buildCurve(look.shoulder)
+        val curve = buildCurve(look.shoulder, look.contrast)
         for (y in 0 until h) {
             for (x in 0 until w) {
                 val i = y * w + x
@@ -93,6 +97,9 @@ object ColorGrade {
                 val y0 = luma[i]
 
                 var l = lut(curve, y0)
+                if (look.brightness != 0f) {
+                    l = (l + look.brightness.coerceIn(-1f, 1f) * 0.15f).coerceIn(0f, 1f)
+                }
                 if (look.shadowLift != 0f) {
                     // Weight the lift toward the bottom of the range, so highlights
                     // and mid-grey keep their measured values.
@@ -278,14 +285,17 @@ object ColorGrade {
      * Tone curve: a gentle S for midtone contrast, then a soft shoulder above the knee
      * so highlights roll off and never reach a hard clip. Output stays below 1.
      */
-    internal fun toneCurve(x: Float, knee: Float): Float {
+    internal fun toneCurve(x: Float, knee: Float, contrast: Float = 0f): Float {
         val s = x * x * (3f - 2f * x)
-        val c = x * 0.75f + s * 0.25f
+        // More contrast means more of the S-curve and less of the straight line, so
+        // midtones separate without the highlights or shadows being touched.
+        val weight = (0.25f * (1f + contrast.coerceIn(-1f, 1f))).coerceIn(0f, 0.55f)
+        val c = x * (1f - weight) + s * weight
         return if (c <= knee) c else knee + (1f - knee) * (1f - exp(-(c - knee) / (1f - knee)))
     }
 
-    private fun buildCurve(knee: Float): FloatArray =
-        FloatArray(LUT_SIZE) { toneCurve(it / (LUT_SIZE - 1f), knee) }
+    private fun buildCurve(knee: Float, contrast: Float): FloatArray =
+        FloatArray(LUT_SIZE) { toneCurve(it / (LUT_SIZE - 1f), knee, contrast) }
 
     private fun lut(curve: FloatArray, v: Float): Float {
         val idx = (v.coerceIn(0f, 1f) * (LUT_SIZE - 1) + 0.5f).toInt()

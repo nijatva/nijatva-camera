@@ -55,6 +55,8 @@ data class Settings(
     val astroFrames: Int = 6,
     val watermark: Boolean = false,
     val look: com.nijatva.camera.grade.LookPreset = com.nijatva.camera.grade.LookPreset.NATURAL,
+    /** The user's own nudges on top of the look. */
+    val tuning: com.nijatva.camera.grade.LookTuning = com.nijatva.camera.grade.LookTuning(),
     val theme: ThemeChoice = ThemeChoice.BLACK,
     val accent: AccentChoice = AccentChoice.SAFFRON,
 )
@@ -94,6 +96,12 @@ class SettingsStore(context: Context) {
             astroFrames = prefs.getInt("astroFrames", defaults.astroFrames).coerceIn(4, 10),
             watermark = prefs.getBoolean("watermark", defaults.watermark),
             look = readEnum("look", defaults.look),
+            tuning = com.nijatva.camera.grade.LookTuning(
+                brightness = prefs.getFloat(com.nijatva.camera.grade.LookTuning.KEY_BRIGHTNESS, 0f),
+                contrast = prefs.getFloat(com.nijatva.camera.grade.LookTuning.KEY_CONTRAST, 0f),
+                saturation = prefs.getFloat(com.nijatva.camera.grade.LookTuning.KEY_SATURATION, 0f),
+                sharpness = prefs.getFloat(com.nijatva.camera.grade.LookTuning.KEY_SHARPNESS, 0f),
+            ),
             theme = readEnum("theme", defaults.theme),
             accent = readEnum("accent", defaults.accent),
         )
@@ -123,6 +131,10 @@ class SettingsStore(context: Context) {
             .putInt("astroFrames", settings.astroFrames)
             .putBoolean("watermark", settings.watermark)
             .putString("look", settings.look.name)
+            .putFloat(com.nijatva.camera.grade.LookTuning.KEY_BRIGHTNESS, settings.tuning.brightness)
+            .putFloat(com.nijatva.camera.grade.LookTuning.KEY_CONTRAST, settings.tuning.contrast)
+            .putFloat(com.nijatva.camera.grade.LookTuning.KEY_SATURATION, settings.tuning.saturation)
+            .putFloat(com.nijatva.camera.grade.LookTuning.KEY_SHARPNESS, settings.tuning.sharpness)
             .putString("theme", settings.theme.name)
             .putString("accent", settings.accent.name)
             .apply()
@@ -152,6 +164,10 @@ class SettingsStore(context: Context) {
         put("astroFrames", s.astroFrames)
         put("watermark", s.watermark)
         put("look", s.look.name)
+        put(com.nijatva.camera.grade.LookTuning.KEY_BRIGHTNESS, s.tuning.brightness.toDouble())
+        put(com.nijatva.camera.grade.LookTuning.KEY_CONTRAST, s.tuning.contrast.toDouble())
+        put(com.nijatva.camera.grade.LookTuning.KEY_SATURATION, s.tuning.saturation.toDouble())
+        put(com.nijatva.camera.grade.LookTuning.KEY_SHARPNESS, s.tuning.sharpness.toDouble())
         put("theme", s.theme.name)
         put("accent", s.accent.name)
     }.toString(2)
@@ -189,6 +205,12 @@ class SettingsStore(context: Context) {
             astroFrames = o.optInt("astroFrames", d.astroFrames).coerceIn(4, 10),
             watermark = o.optBoolean("watermark", d.watermark),
             look = enumFrom(o, "look", d.look),
+            tuning = com.nijatva.camera.grade.LookTuning(
+                brightness = o.optDouble(com.nijatva.camera.grade.LookTuning.KEY_BRIGHTNESS, 0.0).toFloat().coerceIn(-1f, 1f),
+                contrast = o.optDouble(com.nijatva.camera.grade.LookTuning.KEY_CONTRAST, 0.0).toFloat().coerceIn(-1f, 1f),
+                saturation = o.optDouble(com.nijatva.camera.grade.LookTuning.KEY_SATURATION, 0.0).toFloat().coerceIn(-1f, 1f),
+                sharpness = o.optDouble(com.nijatva.camera.grade.LookTuning.KEY_SHARPNESS, 0.0).toFloat().coerceIn(-1f, 1f),
+            ),
             theme = enumFrom(o, "theme", d.theme),
             accent = enumFrom(o, "accent", d.accent),
         )

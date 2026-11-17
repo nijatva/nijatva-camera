@@ -146,6 +146,9 @@ class CameraEngine(
     /** Colour and tone applied to merged photos. */
     var look: com.nijatva.camera.grade.LookPreset = com.nijatva.camera.grade.LookPreset.NATURAL
 
+    /** The user's own brightness, contrast, saturation and sharpness nudges. */
+    var tuning: com.nijatva.camera.grade.LookTuning = com.nijatva.camera.grade.LookTuning()
+
     @Volatile
     private var busy = false
 
@@ -516,7 +519,7 @@ class CameraEngine(
                 val graded = com.nijatva.camera.grade.ColorGrade.applyTo(
                     upright,
                     com.nijatva.camera.grade.LensTuning.adjust(
-                        com.nijatva.camera.grade.ColorGrade.Look.of(look),
+                        tuning.applyTo(com.nijatva.camera.grade.ColorGrade.Look.of(look)),
                         lens,
                     ),
                 )

@@ -255,6 +255,40 @@ class SettingsSheet(
             rebuild()
         })
 
+        val tuning = settings.tuning
+        content.addView(tuningRow(
+            title = "Brightness",
+            subtitle = "Lifts or lowers the whole frame",
+            value = tuning.brightness,
+        ) { v ->
+            settings = settings.copy(tuning = settings.tuning.copy(brightness = v))
+            push()
+        })
+        content.addView(tuningRow(
+            title = "Contrast",
+            subtitle = "Separates the midtones, keeps black and white",
+            value = tuning.contrast,
+        ) { v ->
+            settings = settings.copy(tuning = settings.tuning.copy(contrast = v))
+            push()
+        })
+        content.addView(tuningRow(
+            title = "Saturation",
+            subtitle = "Scales colour around brightness",
+            value = tuning.saturation,
+        ) { v ->
+            settings = settings.copy(tuning = settings.tuning.copy(saturation = v))
+            push()
+        })
+        content.addView(tuningRow(
+            title = "Sharpness",
+            subtitle = "Scales the edge bite, not the noise",
+            value = tuning.sharpness,
+        ) { v ->
+            settings = settings.copy(tuning = settings.tuning.copy(sharpness = v))
+            push()
+        })
+
         content.addView(switchRow(
             title = "Watermark",
             subtitle = "Stamp \"Shot on Nijatva\" in the corner of merged photos",
@@ -421,6 +455,74 @@ class SettingsSheet(
         }
         row.addView(buttons)
         return row
+    }
+
+    /**
+     * A tuning slider: -100..100 on screen, -1..1 in the settings, 0 in the middle.
+     *
+     * Centred rather than left-anchored, because these are corrections on top of a
+     * look - the meaningful position is "no change", not "minimum".
+     */
+    private fun tuningRow(
+        title: String,
+        subtitle: String,
+        value: Float,
+        onChange: (Float) -> Unit,
+    ): View {
+        val column = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(0, dp(10), 0, dp(10))
+        }
+        val header = LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        val text = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
+        text.addView(TextView(context).apply {
+            this.text = title
+            setTextColor(Color.WHITE)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
+        })
+        text.addView(TextView(context).apply {
+            this.text = subtitle
+            setTextColor(Color.parseColor("#9AA3AD"))
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 11f)
+            setPadding(0, dp(2), dp(12), 0)
+        })
+        header.addView(text, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+
+        val readout = TextView(context).apply {
+            this.text = formatTuning(value)
+            setTextColor(Palette.accent)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
+        }
+        header.addView(readout)
+        column.addView(header)
+
+        column.addView(android.widget.SeekBar(context).apply {
+            max = 200
+            progress = ((value.coerceIn(-1f, 1f) + 1f) * 100f).roundToInt()
+            setOnSeekBarChangeListener(object : android.widget.SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(bar: android.widget.SeekBar, progress: Int, fromUser: Boolean) {
+                    val v = (progress - 100) / 100f
+                    readout.text = formatTuning(v)
+                    if (fromUser) onChange(v)
+                }
+
+                override fun onStartTrackingTouch(bar: android.widget.SeekBar) = Unit
+                override fun onStopTrackingTouch(bar: android.widget.SeekBar) = Unit
+            })
+        })
+        return column
+    }
+
+    private fun formatTuning(value: Float): String {
+        val percent = (value * 100f).roundToInt()
+        return when {
+            percent == 0 -> "0"
+            percent > 0 -> "+$percent"
+            else -> percent.toString()
+        }
     }
 
     private fun segmentedRow(
