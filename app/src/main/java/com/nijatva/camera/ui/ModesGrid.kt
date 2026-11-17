@@ -36,6 +36,8 @@ class ModesGrid(context: Context) : FrameLayout(context) {
     var onMoreTapped: (() -> Unit)? = null
     /** Called when a tile is dragged onto the strip: add this mode to it. */
     var onModeDropped: ((Mode) -> Unit)? = null
+    /** Called when a chip is dragged onto another position: move it there. */
+    var onModeMoved: ((Mode, Int) -> Unit)? = null
 
     private val column = LinearLayout(context).apply {
         orientation = LinearLayout.VERTICAL
@@ -121,6 +123,7 @@ class ModesGrid(context: Context) : FrameLayout(context) {
                 else -> false
             }
         }
+        strip.onModeMoved = { mode, index -> onModeMoved?.invoke(mode, index) }
         strip.onModeSelected = { mode -> onModeSelected?.invoke(mode) }
         strip.onMore = { onMoreTapped?.invoke() }
         strip.setMoreHighlighted(true)

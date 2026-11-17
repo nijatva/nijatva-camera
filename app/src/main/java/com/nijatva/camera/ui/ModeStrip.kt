@@ -36,6 +36,9 @@ class ModeStrip(context: Context) : HorizontalScrollView(context) {
     var onModeSelected: ((Mode) -> Unit)? = null
     var onMore: (() -> Unit)? = null
 
+    /** A mode was dropped onto the strip at [index]; -1 means "wherever it lands". */
+    var onModeMoved: ((Mode, Int) -> Unit)? = null
+
     private val row = LinearLayout(context).apply {
         orientation = LinearLayout.HORIZONTAL
         gravity = Gravity.CENTER_VERTICAL
@@ -68,9 +71,45 @@ class ModeStrip(context: Context) : HorizontalScrollView(context) {
         }
         val more = chip(context.getString(R.string.mode_more))
         more.setOnClickListener { onMore?.invoke() }
+        // A drop is placed where it was dropped, not always at the end: that is the
+        // difference between adding a mode and arranging them.
+        row.setOnDragListener { _, event ->
+            when (event.action) {
+                android.view.DragEvent.ACTION_DRAG_STARTED -> true
+                android.view.DragEvent.ACTION_DRAG_ENTERED -> {
+                    alpha = 0.75f
+                    true
+                }
+                android.view.DragEvent.ACTION_DRAG_EXITED -> {
+                    alpha = 1f
+                    true
+                }
+                android.view.DragEvent.ACTION_DROP -> {
+                    alpha = 1f
+                    val dropped = event.localState as? Mode
+                    if (dropped != null) onModeMoved?.invoke(dropped, indexAt(event.x))
+                    true
+                }
+                android.view.DragEvent.ACTION_DRAG_ENDED -> {
+                    alpha = 1f
+                    true
+                }
+                else -> false
+            }
+        }
         moreChip = more
         row.addView(more)
         selected?.let { setSelected(it) }
+    }
+
+    /** Which chip position a drop at [x] falls on, in the strip's own coordinates. */
+    private fun indexAt(x: Float): Int {
+        if (chips.isEmpty()) return 0
+        for (i in chips.indices) {
+            val chip = chips[i].second
+            if (x < chip.left + chip.width / 2f) return i
+        }
+        return chips.size
     }
 
     fun setSelected(mode: Mode) {

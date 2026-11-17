@@ -43,9 +43,21 @@ object Modes {
         }
 
     /** The strip with one mode added, or moved to the end if it was already there. */
-    fun withMode(lite: Boolean, custom: List<String>, mode: Mode): List<String> {
+    fun withMode(lite: Boolean, custom: List<String>, mode: Mode): List<String> =
+        withModeAt(lite, custom, mode, Int.MAX_VALUE)
+
+    /**
+     * The strip with one mode moved to [index].
+     *
+     * The mode is taken out first, so dropping a chip onto its own position, or onto
+     * the gap next to it, does not shift the whole strip by one. The index is clamped
+     * to the end, which is what a drop past the last chip means.
+     */
+    fun withModeAt(lite: Boolean, custom: List<String>, mode: Mode, index: Int): List<String> {
         val current = stripModes(lite, custom).map { it.name }
-        return (current - mode.name) + mode.name
+        val without = current - mode.name
+        val at = index.coerceIn(0, without.size)
+        return without.subList(0, at) + mode.name + without.subList(at, without.size)
     }
 
     /** Every mode the edition can actually do. The MORE grid lists exactly these. */

@@ -60,4 +60,32 @@ class StripOrderTest {
         assertEquals(listOf("PHOTO", "PRO", "NIGHT"), next)
         assertEquals(listOf(Mode.PHOTO, Mode.PRO, Mode.NIGHT), Modes.stripModes(true, next))
     }
+
+    @Test
+    fun aDropInTheMiddleLandsWhereItWasDropped() {
+        val custom = listOf("PHOTO", "VIDEO", "NIGHT")
+        val next = Modes.withModeAt(false, custom, Mode.RAW, 1)
+        assertEquals(listOf("PHOTO", "RAW", "VIDEO", "NIGHT"), next)
+    }
+
+    @Test
+    fun movingAChipDoesNotShiftTheRestByOne() {
+        // NIGHT already sits at index 2; dropping it there must change nothing.
+        val custom = listOf("PHOTO", "VIDEO", "NIGHT", "PRO")
+        assertEquals(custom, Modes.withModeAt(false, custom, Mode.NIGHT, 2))
+        // And moving it to the front puts it first, with the others in order.
+        assertEquals(listOf("NIGHT", "PHOTO", "VIDEO", "PRO"), Modes.withModeAt(false, custom, Mode.NIGHT, 0))
+    }
+
+    @Test
+    fun anIndexPastTheEndMeansTheEnd() {
+        val custom = listOf("PHOTO", "VIDEO")
+        assertEquals(listOf("PHOTO", "VIDEO", "NIGHT"), Modes.withModeAt(false, custom, Mode.NIGHT, 99))
+    }
+
+    @Test
+    fun aNegativeIndexMeansTheFront() {
+        val custom = listOf("PHOTO", "VIDEO")
+        assertEquals(listOf("NIGHT", "PHOTO", "VIDEO"), Modes.withModeAt(false, custom, Mode.NIGHT, -3))
+    }
 }

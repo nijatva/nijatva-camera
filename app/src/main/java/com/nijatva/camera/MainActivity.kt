@@ -104,7 +104,15 @@ class MainActivity : AppCompatActivity(), CameraEngine.Callback {
      * astro and RAW are still in the engine, just not offered. The rule itself
      * lives in Modes, so it can be unit tested.
      */
-    private val stripModes: List<Mode> = com.nijatva.camera.camera.Modes.stripModes(BuildConfig.LITE)
+    /**
+     * The mode strip, in the user's arrangement once they have made one.
+     *
+     * A drop on the strip has to be able to change this, so it is not a val read once
+     * at startup - a previous refactor turned it back into one and quietly disconnected
+     * the drag-and-drop, which left the tiles draggable with nothing listening.
+     */
+    private var stripModes: List<Mode> =
+        com.nijatva.camera.camera.Modes.stripModes(BuildConfig.LITE, emptyList())
     private val gridModes: List<Mode> = com.nijatva.camera.camera.Modes.gridModes(BuildConfig.LITE)
     private var settings = Settings()
 
@@ -369,7 +377,10 @@ class MainActivity : AppCompatActivity(), CameraEngine.Callback {
             }
             visibility = View.GONE
         }
-        zoomPill.bind(listOf(1f, 2f), 1f)
+        zoomPill.bind(
+            com.nijatva.camera.ui.ZoomStops.stops(engine.maxZoomRatio()),
+            1f,
+        )
 
         val quickRow = FrameLayout(this).apply { setPadding(0, 0, 0, dp(6)) }
         quickRow.addView(zoomPill, FrameLayout.LayoutParams(
@@ -499,6 +510,8 @@ class MainActivity : AppCompatActivity(), CameraEngine.Callback {
                 closeModesGrid()
             }
             onMoreTapped = { closeModesGrid() }
+            onModeDropped = { mode -> addModeToStrip(mode) }
+            onModeMoved = { mode, index -> moveModeInStrip(mode, index) }
         }
         modesGrid.bind(
             modes = gridModes,
@@ -551,7 +564,8 @@ class MainActivity : AppCompatActivity(), CameraEngine.Callback {
             override fun onScale(detector: ScaleGestureDetector): Boolean {
                 val next = (engine.currentSettings.zoom * detector.scaleFactor).coerceIn(1f, 8f)
                 engine.updateSettings { it.copy(zoom = next) }
-                zoomPill.select(if (next >= 1.6f) 2f else 1f)
+                // While the fingers are down, show the ratio itself: 2.4x, 3x.
+                zoomPill.showRatio(next)
                 return true
             }
         })
@@ -867,6 +881,82 @@ class MainActivity : AppCompatActivity(), CameraEngine.Callback {
         modesGrid.open()
     }
 
+    /** A tile dropped on the strip joins it, at the end. */
+    private fun addModeToStrip(mode: Mode) {
+        applyStripOrder(
+            com.nijatva.camera.camera.Modes.withMode(BuildConfig.LITE, settings.stripOrder, mode),
+            mode,
+            "added to the strip",
+        )
+    }
+
+    /** A chip dropped on another position moves there. */
+    private fun moveModeInStrip(mode: Mode, index: Int) {
+        applyStripOrder(
+            com.nijatva.camera.camera.Modes.withModeAt(BuildConfig.LITE, settings.stripOrder, mode, index),
+            mode,
+            "moved",
+        )
+    }
+
+    /** Stores an arrangement, then rebuilds the strip and the grid to match it. */
+    private fun applyStripOrder(next: List<String>, mode: Mode, verb: String) {
+        settings = settings.copy(stripOrder = next)
+        store.save(settings)
+        stripModes = com.nijatva.camera.camera.Modes.stripModes(BuildConfig.LITE, next)
+        modeStrip.bind(stripModes)
+        modeStrip.setSelected(currentMode)
+        modesGrid.bind(
+            modes = gridModes,
+            stripModes = stripModes,
+            columns = if (isTablet()) 4 else 3,
+        )
+        modesGrid.setSelected(currentMode)
+        Toast.makeText(
+            this,
+            getString(com.nijatva.camera.camera.Modes.labelRes(mode)) + " " + verb,
+            Toast.LENGTH_SHORT,
+        ).show()
+    }
+
+    /** A tile dropped on the strip joins it, at the end. */
+    private fun addModeToStrip(mode: Mode) {
+        applyStripOrder(
+            com.nijatva.camera.camera.Modes.withMode(BuildConfig.LITE, settings.stripOrder, mode),
+            mode,
+            "added to the strip",
+        )
+    }
+
+    /** A chip dropped on another position moves there. */
+    private fun moveModeInStrip(mode: Mode, index: Int) {
+        applyStripOrder(
+            com.nijatva.camera.camera.Modes.withModeAt(BuildConfig.LITE, settings.stripOrder, mode, index),
+            mode,
+            "moved",
+        )
+    }
+
+    /** Stores an arrangement, then rebuilds the strip and the grid to match it. */
+    private fun applyStripOrder(next: List<String>, mode: Mode, verb: String) {
+        settings = settings.copy(stripOrder = next)
+        store.save(settings)
+        stripModes = com.nijatva.camera.camera.Modes.stripModes(BuildConfig.LITE, next)
+        modeStrip.bind(stripModes)
+        modeStrip.setSelected(currentMode)
+        modesGrid.bind(
+            modes = gridModes,
+            stripModes = stripModes,
+            columns = if (isTablet()) 4 else 3,
+        )
+        modesGrid.setSelected(currentMode)
+        Toast.makeText(
+            this,
+            getString(com.nijatva.camera.camera.Modes.labelRes(mode)) + " " + verb,
+            Toast.LENGTH_SHORT,
+        ).show()
+    }
+
     private fun closeModesGrid() {
         modesGrid.close()
         modeStrip.setMoreHighlighted(false)
@@ -991,7 +1081,8 @@ class MainActivity : AppCompatActivity(), CameraEngine.Callback {
     private fun refreshAccent() {
         modeStrip.setSelected(currentMode)
         modesGrid.setSelected(currentMode)
-        zoomPill.select(if (engine.currentSettings.zoom >= 1.6f) 2f else 1f)
+        zoomPill.endRatio()
+        zoomPill.select(engine.currentSettings.zoom)
         ringColor = 0
         updateShutterRing()
     }
@@ -1022,6 +1113,34 @@ class MainActivity : AppCompatActivity(), CameraEngine.Callback {
     }
 
     private fun applySettings() {
+        // Applied here so a restart or a settings import shows the strip the user
+        // arranged, not the default one.
+        val arranged = com.nijatva.camera.camera.Modes.stripModes(BuildConfig.LITE, settings.stripOrder)
+        if (arranged != stripModes) {
+            stripModes = arranged
+            modeStrip.bind(stripModes)
+            modeStrip.setSelected(currentMode)
+            modesGrid.bind(
+                modes = gridModes,
+                stripModes = stripModes,
+                columns = if (isTablet()) 4 else 3,
+            )
+            modesGrid.setSelected(currentMode)
+        }
+        // The saved arrangement is applied here, so a restart or a settings import
+        // shows the strip the user arranged rather than the default one.
+        val arranged = com.nijatva.camera.camera.Modes.stripModes(BuildConfig.LITE, settings.stripOrder)
+        if (arranged != stripModes) {
+            stripModes = arranged
+            modeStrip.bind(stripModes)
+            modeStrip.setSelected(currentMode)
+            modesGrid.bind(
+                modes = gridModes,
+                stripModes = stripModes,
+                columns = if (isTablet()) 4 else 3,
+            )
+            modesGrid.setSelected(currentMode)
+        }
         engine.updateSettings {
             it.copy(
                 flashAlways = settings.flash == FlashMode.ON,
@@ -1042,6 +1161,7 @@ class MainActivity : AppCompatActivity(), CameraEngine.Callback {
         engine.jpegQuality = settings.jpegQuality
         engine.watermark = settings.watermark
         engine.autoHdr = settings.autoHdr
+        engine.matchPreview = settings.matchPreview
         engine.portraitBlur = settings.portraitBlur
         engine.portraitFocus = settings.portraitFocus
         engine.look = settings.look
