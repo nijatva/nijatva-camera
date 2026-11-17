@@ -244,6 +244,15 @@ class SettingsSheet(
             push()
         })
 
+        content.addView(switchRow(
+            title = "Auto HDR",
+            subtitle = "Merges a burst when the sky is clipping, instead of one frame",
+            checked = settings.autoHdr,
+        ) { checked ->
+            settings = settings.copy(autoHdr = checked)
+            push()
+        })
+
         content.addView(segmentedRow(
             title = context.getString(R.string.look_title),
             subtitle = context.getString(R.string.look_subtitle),

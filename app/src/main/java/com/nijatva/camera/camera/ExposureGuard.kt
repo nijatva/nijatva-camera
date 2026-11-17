@@ -57,6 +57,43 @@ object ExposureGuard {
     }
 
     /**
+     * Clipped share of the frame, read from a 256-bin luma histogram.
+     *
+     * The analysis stream already builds this histogram for the overlay, so the
+     * decision to merge a burst costs nothing extra.
+     */
+    fun clippedFraction(histogram: IntArray): Float {
+        if (histogram.size < 256) return 0f
+        var total = 0L
+        var clipped = 0L
+        for (bin in 0 until 256) {
+            val count = histogram[bin]
+            total += count
+            if (bin >= CLIP_LUMA) clipped += count
+        }
+        if (total == 0L) return 0f
+        return clipped.toFloat() / total
+    }
+
+    /**
+     * Whether a plain photo should be taken as a merged burst instead.
+     *
+     * All four have to hold: the user left Auto HDR on, the scene is losing
+     * highlights, the camera can actually hold a manual exposure for the merge, and
+     * a YUV stream exists to merge from. Any one of them failing means an ordinary
+     * JPEG, which is never worse than a burst that cannot be taken.
+     */
+    fun shouldMergeBurst(
+        enabled: Boolean,
+        clippedFraction: Float,
+        supportsManualControls: Boolean,
+        hasYuvStream: Boolean,
+    ): Boolean = enabled &&
+        clippedFraction >= CLIP_WARN &&
+        supportsManualControls &&
+        hasYuvStream
+
+    /**
      * A short line for the viewfinder, or null when the exposure is fine. Only
      * speaks up when there is something the user can act on.
      */

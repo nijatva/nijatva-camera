@@ -1046,6 +1046,7 @@ class MainActivity : AppCompatActivity(), CameraEngine.Callback {
         engine.rawBitDepth = settings.rawBitDepth
         engine.jpegQuality = settings.jpegQuality
         engine.watermark = settings.watermark
+        engine.autoHdr = settings.autoHdr
         engine.look = settings.look
         engine.tuning = settings.tuning
 

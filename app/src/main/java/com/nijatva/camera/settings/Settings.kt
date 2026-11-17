@@ -55,6 +55,8 @@ data class Settings(
     val astroFrames: Int = 6,
     val watermark: Boolean = false,
     val look: com.nijatva.camera.grade.LookPreset = com.nijatva.camera.grade.LookPreset.NATURAL,
+    /** Merge a plain photo as a burst when the scene is losing highlights. */
+    val autoHdr: Boolean = true,
     /** The user's own nudges on top of the look. */
     val tuning: com.nijatva.camera.grade.LookTuning = com.nijatva.camera.grade.LookTuning(),
     val theme: ThemeChoice = ThemeChoice.BLACK,
@@ -95,6 +97,7 @@ class SettingsStore(context: Context) {
             astroSeconds = prefs.getInt("astroSeconds", defaults.astroSeconds).coerceIn(2, 8),
             astroFrames = prefs.getInt("astroFrames", defaults.astroFrames).coerceIn(4, 10),
             watermark = prefs.getBoolean("watermark", defaults.watermark),
+            autoHdr = prefs.getBoolean("autoHdr", defaults.autoHdr),
             look = readEnum("look", defaults.look),
             tuning = com.nijatva.camera.grade.LookTuning(
                 brightness = prefs.getFloat(com.nijatva.camera.grade.LookTuning.KEY_BRIGHTNESS, 0f),
@@ -130,6 +133,7 @@ class SettingsStore(context: Context) {
             .putInt("astroSeconds", settings.astroSeconds)
             .putInt("astroFrames", settings.astroFrames)
             .putBoolean("watermark", settings.watermark)
+            .putBoolean("autoHdr", settings.autoHdr)
             .putString("look", settings.look.name)
             .putFloat(com.nijatva.camera.grade.LookTuning.KEY_BRIGHTNESS, settings.tuning.brightness)
             .putFloat(com.nijatva.camera.grade.LookTuning.KEY_CONTRAST, settings.tuning.contrast)
@@ -163,6 +167,7 @@ class SettingsStore(context: Context) {
         put("astroSeconds", s.astroSeconds)
         put("astroFrames", s.astroFrames)
         put("watermark", s.watermark)
+        put("autoHdr", s.autoHdr)
         put("look", s.look.name)
         put(com.nijatva.camera.grade.LookTuning.KEY_BRIGHTNESS, s.tuning.brightness.toDouble())
         put(com.nijatva.camera.grade.LookTuning.KEY_CONTRAST, s.tuning.contrast.toDouble())
@@ -204,6 +209,7 @@ class SettingsStore(context: Context) {
             astroSeconds = o.optInt("astroSeconds", d.astroSeconds).coerceIn(2, 8),
             astroFrames = o.optInt("astroFrames", d.astroFrames).coerceIn(4, 10),
             watermark = o.optBoolean("watermark", d.watermark),
+            autoHdr = o.optBoolean("autoHdr", d.autoHdr),
             look = enumFrom(o, "look", d.look),
             tuning = com.nijatva.camera.grade.LookTuning(
                 brightness = o.optDouble(com.nijatva.camera.grade.LookTuning.KEY_BRIGHTNESS, 0.0).toFloat().coerceIn(-1f, 1f),

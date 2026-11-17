@@ -149,6 +149,15 @@ class CameraEngine(
     /** The user's own brightness, contrast, saturation and sharpness nudges. */
     var tuning: com.nijatva.camera.grade.LookTuning = com.nijatva.camera.grade.LookTuning()
 
+    /** Take a plain photo as a merged burst when the scene is losing highlights. */
+    var autoHdr: Boolean = true
+
+    /** Share of the last analysed frame that was at the top of the range. */
+    @Volatile private var sceneClipped: Float = 0f
+
+    /** True while the burst in flight was started by Auto HDR rather than by HDR mode. */
+    private var autoHdrShot = false
+
     @Volatile
     private var busy = false
 
@@ -340,7 +349,13 @@ class CameraEngine(
             return
         }
         when (mode) {
-            Mode.PHOTO, Mode.PRO -> captureJpeg()
+            Mode.PHOTO -> if (wantsAutoHdr()) {
+                autoHdrShot = true
+                startComputational()
+            } else {
+                captureJpeg()
+            }
+            Mode.PRO -> captureJpeg()
             Mode.RAW -> captureRaw()
             Mode.NIGHT, Mode.HDR, Mode.ASTRO -> startComputational()
             Mode.PANORAMA -> callback.onNotice("Panorama frames are captured automatically as you turn")
@@ -405,6 +420,19 @@ class CameraEngine(
         }
     }
 
+    /**
+     * Auto HDR: the scene is clipping and everything needed to merge is present.
+     *
+     * The decision itself lives in ExposureGuard so it can be tested; this only
+     * gathers the four facts it asks for.
+     */
+    private fun wantsAutoHdr(): Boolean = com.nijatva.camera.camera.ExposureGuard.shouldMergeBurst(
+        enabled = autoHdr,
+        clippedFraction = sceneClipped,
+        supportsManualControls = caps?.supportsManualControls == true,
+        hasYuvStream = yuvReader != null,
+    )
+
     private fun startComputational() {
         val c = caps ?: return
         if (!c.supportsManualControls) {
@@ -425,9 +453,10 @@ class CameraEngine(
         skipCount = 0
         stepCollected = 0
 
-        plan = if (mode == Mode.NIGHT) {
+        val effective = if (autoHdrShot) Mode.HDR else mode
+        plan = if (effective == Mode.NIGHT) {
             listOf(Step(exposureNs = nightExposureNs(c), iso = nightIso(c), skip = 3, keep = NIGHT_FRAMES))
-        } else if (mode == Mode.ASTRO) {
+        } else if (effective == Mode.ASTRO) {
             // One long exposure setting for every frame. Skip one frame so the
             // new exposure has settled before it is kept.
             listOf(Step(exposureNs = astroExposureNs(c), iso = astroIso(c), skip = 1, keep = astroFrames))
@@ -491,6 +520,10 @@ class CameraEngine(
         val captured = frames.toList()
         frames.clear()
         val capturedMode = mode
+        // An Auto HDR burst is a Photo-mode shot that was merged; say so in the
+        // filename label instead of calling it a plain photo.
+        val capturedLabel = if (autoHdrShot) "HDR" else capturedMode.label
+        autoHdrShot = false
 
         restartPreview()
         callback.onNotice("Merging ${captured.size} frames")
@@ -526,7 +559,7 @@ class CameraEngine(
                 val uri = saver.saveJpeg(
                     graded,
                     quality = jpegQuality,
-                    label = capturedMode.label.uppercase(),
+                    label = capturedLabel.uppercase(),
                     mirror = shouldMirror(),
                     wideGamut = wideColour,
                     watermark = if (watermark) "Shot on Nijatva" else null,
@@ -829,10 +862,10 @@ class CameraEngine(
         val image = reader.acquireLatestImage() ?: return
         try {
             analysisCounter++
-            val wanted = histogramWanted || peakingWanted
+            val wanted = histogramWanted || peakingWanted || autoHdr
             if (!wanted || busy || analysisCounter % ANALYSIS_EVERY != 0) return
             val frame = YuvFrame.from(image)
-            val hist = if (histogramWanted) {
+            val hist = if (histogramWanted || autoHdr) {
                 com.nijatva.camera.analysis.FrameAnalysis.histogram(frame.luma, frame.width, frame.height)
             } else {
                 IntArray(0)
@@ -844,6 +877,7 @@ class CameraEngine(
             } else {
                 IntArray(0)
             }
+            if (autoHdr) sceneClipped = ExposureGuard.clippedFraction(hist)
             callback.onAnalysis(hist, peaks, frame.width, frame.height, jpegRotation())
         } catch (t: Throwable) {
             Log.e(TAG, "Analysis frame failed", t)
