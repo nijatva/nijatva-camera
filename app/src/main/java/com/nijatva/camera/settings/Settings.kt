@@ -57,6 +57,8 @@ data class Settings(
     val look: com.nijatva.camera.grade.LookPreset = com.nijatva.camera.grade.LookPreset.NATURAL,
     /** Merge a plain photo as a burst when the scene is losing highlights. */
     val autoHdr: Boolean = true,
+    /** Keep the capture's exposure and white balance on the preview's values. */
+    val matchPreview: Boolean = true,
     /** The user's own mode-strip arrangement, by mode name. Empty means the default. */
     val stripOrder: List<String> = emptyList(),
     /** Soften the background of a photo after it is taken. */
@@ -104,6 +106,7 @@ class SettingsStore(context: Context) {
             astroFrames = prefs.getInt("astroFrames", defaults.astroFrames).coerceIn(4, 10),
             watermark = prefs.getBoolean("watermark", defaults.watermark),
             autoHdr = prefs.getBoolean("autoHdr", defaults.autoHdr),
+            matchPreview = prefs.getBoolean("matchPreview", defaults.matchPreview),
             stripOrder = prefs.getString("stripOrder", null)?.split(",")?.filter { it.isNotBlank() } ?: emptyList(),
             portraitBlur = prefs.getBoolean("portraitBlur", defaults.portraitBlur),
             portraitFocus = prefs.getFloat("portraitFocus", defaults.portraitFocus).coerceIn(0.25f, 0.75f),
@@ -143,6 +146,7 @@ class SettingsStore(context: Context) {
             .putInt("astroFrames", settings.astroFrames)
             .putBoolean("watermark", settings.watermark)
             .putBoolean("autoHdr", settings.autoHdr)
+            .putBoolean("matchPreview", settings.matchPreview)
             .putString("stripOrder", settings.stripOrder.joinToString(","))
             .putBoolean("portraitBlur", settings.portraitBlur)
             .putFloat("portraitFocus", settings.portraitFocus)
@@ -180,6 +184,7 @@ class SettingsStore(context: Context) {
         put("astroFrames", s.astroFrames)
         put("watermark", s.watermark)
         put("autoHdr", s.autoHdr)
+        put("matchPreview", s.matchPreview)
         put("stripOrder", s.stripOrder.joinToString(","))
         put("portraitBlur", s.portraitBlur)
         put("portraitFocus", s.portraitFocus.toDouble())
@@ -225,6 +230,7 @@ class SettingsStore(context: Context) {
             astroFrames = o.optInt("astroFrames", d.astroFrames).coerceIn(4, 10),
             watermark = o.optBoolean("watermark", d.watermark),
             autoHdr = o.optBoolean("autoHdr", d.autoHdr),
+            matchPreview = o.optBoolean("matchPreview", d.matchPreview),
             stripOrder = o.optString("stripOrder", "").split(",").filter { it.isNotBlank() },
             portraitBlur = o.optBoolean("portraitBlur", d.portraitBlur),
             portraitFocus = o.optDouble("portraitFocus", d.portraitFocus.toDouble()).toFloat().coerceIn(0.25f, 0.75f),

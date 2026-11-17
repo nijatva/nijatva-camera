@@ -245,6 +245,15 @@ class SettingsSheet(
         })
 
         content.addView(switchRow(
+            title = "Match preview",
+            subtitle = "Hold the capture on the preview's exposure and white balance",
+            checked = settings.matchPreview,
+        ) { checked ->
+            settings = settings.copy(matchPreview = checked)
+            push()
+        })
+
+        content.addView(switchRow(
             title = "Auto HDR",
             subtitle = "Merges a burst when the sky is clipping, instead of one frame",
             checked = settings.autoHdr,

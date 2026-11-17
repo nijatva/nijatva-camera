@@ -161,6 +161,12 @@ class CameraEngine(
     /** Share of the last analysed frame that was at the top of the range. */
     @Volatile private var sceneClipped: Float = 0f
 
+    /** True once the preview has reported a converged AE and AF at least once. */
+    @Volatile private var previewConverged: Boolean = false
+
+    /** Keep the capture's exposure and white balance on the preview's values. */
+    var matchPreview: Boolean = true
+
     /** True while the burst in flight was started by Auto HDR rather than by HDR mode. */
     private var autoHdrShot = false
 
@@ -767,6 +773,16 @@ class CameraEngine(
             request: CaptureRequest,
             result: TotalCaptureResult,
         ) {
+            // A converged AE state is what the user is looking at; remember it so the
+            // still capture can hold the same exposure instead of re-converging.
+            val aeState = result.get(CaptureResult.CONTROL_AE_STATE)
+            if (aeState == null ||
+                aeState == CameraMetadata.CONTROL_AE_STATE_CONVERGED ||
+                aeState == CameraMetadata.CONTROL_AE_STATE_LOCKED
+            ) {
+                previewConverged = true
+            }
+
             metricsCounter++
             if (metricsCounter % 4 != 0) return
             val sensitivity = result.get(CaptureResult.SENSOR_SENSITIVITY) ?: return
@@ -988,6 +1004,21 @@ class CameraEngine(
             builder.set(CaptureRequest.CONTROL_AE_MODE, CameraMetadata.CONTROL_AE_MODE_ON_ALWAYS_FLASH)
         } else if (settings.autoFlash) {
             builder.set(CaptureRequest.CONTROL_AE_MODE, CameraMetadata.CONTROL_AE_MODE_ON_AUTO_FLASH)
+        }
+
+        // The preview has been converging AE and AWB for as long as the user has been
+        // looking at it. A still capture that re-converges lands on slightly different
+        // numbers, which is why a photo can look brighter or cooler than the frame it
+        // was taken from. Locking both keeps the values the user was looking at.
+        val wantsLock = com.nijatva.camera.camera.PreviewMatch.shouldLock(
+            enabled = matchPreview,
+            hasManualIso = (isoOverride ?: settings.iso) != null,
+            hasManualExposure = (exposureOverride ?: settings.exposureNs) != null,
+            converged = previewConverged,
+        )
+        if (wantsLock && template == CameraDevice.TEMPLATE_STILL_CAPTURE) {
+            builder.set(CaptureRequest.CONTROL_AE_LOCK, true)
+            builder.set(CaptureRequest.CONTROL_AWB_LOCK, true)
         }
 
         val iso = isoOverride ?: settings.iso
