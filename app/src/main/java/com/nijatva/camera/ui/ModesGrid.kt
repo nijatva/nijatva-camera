@@ -34,10 +34,15 @@ class ModesGrid(context: Context) : FrameLayout(context) {
 
     var onModeSelected: ((Mode) -> Unit)? = null
     var onMoreTapped: (() -> Unit)? = null
+    /** Called when a tile is dragged onto the strip: add this mode to it. */
+    var onModeDropped: ((Mode) -> Unit)? = null
 
     private val column = LinearLayout(context).apply {
         orientation = LinearLayout.VERTICAL
-        gravity = Gravity.CENTER_VERTICAL
+        // Top-aligned: centring the whole column pushed the header into the middle of
+        // the screen with a band of empty black above it, which is what the screenshot
+        // showed. The header belongs at the top, the tiles right under it.
+        gravity = Gravity.TOP
         setPadding(dp(16), dp(24), dp(16), dp(12))
     }
     private val scroller = ScrollView(context).apply {
@@ -45,7 +50,7 @@ class ModesGrid(context: Context) : FrameLayout(context) {
         // fillViewport plus CENTER_VERTICAL centres the tiles in the space between
         // the header and the strip. Without it a tall phone shows the grid jammed at
         // the top with a screen of empty black underneath.
-        isFillViewport = true
+        isFillViewport = false
     }
     private var topInset = 0
     private val strip = ModeStrip(context)
@@ -92,6 +97,30 @@ class ModesGrid(context: Context) : FrameLayout(context) {
         // Keep the tiles clear of the strip at the bottom and the status bar at the top.
         scroller.setPadding(0, 0, 0, dp(84))
 
+        strip.setOnDragListener { _, event ->
+            when (event.action) {
+                android.view.DragEvent.ACTION_DRAG_STARTED -> true
+                android.view.DragEvent.ACTION_DRAG_ENTERED -> {
+                    strip.alpha = 0.75f
+                    true
+                }
+                android.view.DragEvent.ACTION_DRAG_EXITED -> {
+                    strip.alpha = 1f
+                    true
+                }
+                android.view.DragEvent.ACTION_DROP -> {
+                    strip.alpha = 1f
+                    val dropped = event.localState as? Mode
+                    if (dropped != null) onModeDropped?.invoke(dropped)
+                    true
+                }
+                android.view.DragEvent.ACTION_DRAG_ENDED -> {
+                    strip.alpha = 1f
+                    true
+                }
+                else -> false
+            }
+        }
         strip.onModeSelected = { mode -> onModeSelected?.invoke(mode) }
         strip.onMore = { onMoreTapped?.invoke() }
         strip.setMoreHighlighted(true)
@@ -164,8 +193,14 @@ class ModesGrid(context: Context) : FrameLayout(context) {
 
     private fun tile(mode: Mode): LinearLayout = LinearLayout(context).apply {
         orientation = LinearLayout.VERTICAL
-        gravity = Gravity.CENTER_HORIZONTAL
-        setPadding(0, dp(10), 0, dp(10))
+        gravity = Gravity.CENTER
+        // A card, so a tile reads as something you can pick up rather than a label.
+        setPadding(dp(6), dp(18), dp(6), dp(14))
+        background = GradientDrawable().apply {
+            cornerRadius = dp(16).toFloat()
+            setColor(CARD)
+            setStroke(dp(1), CARD_EDGE)
+        }
         isClickable = true
         isFocusable = true
         contentDescription = context.getString(Modes.labelRes(mode))
@@ -190,11 +225,24 @@ class ModesGrid(context: Context) : FrameLayout(context) {
             setPadding(0, dp(10), 0, 0)
         })
         setOnClickListener { onModeSelected?.invoke(mode) }
+        // Hold and drag to add this mode to the strip, the way the stock camera does
+        // it: the grid is where every mode lives, the strip is where you put the ones
+        // you use.
+        setOnLongClickListener { view ->
+            val shadow = android.view.View.DragShadowBuilder(view)
+            @Suppress("DEPRECATION")
+            view.startDrag(null, shadow, mode, 0)
+            true
+        }
     }
 
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).roundToInt()
 
     private companion object {
         val ACCENT: Int get() = Palette.accent
+
+        /** Card fill and hairline, a step above the sheet behind them. */
+        val CARD: Int = android.graphics.Color.parseColor("#22252A")
+        val CARD_EDGE: Int = android.graphics.Color.argb(28, 255, 255, 255)
     }
 }

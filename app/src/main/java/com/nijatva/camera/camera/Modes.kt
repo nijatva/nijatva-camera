@@ -17,12 +17,36 @@ object Modes {
      * Video and astro are full-edition only: the Lite build has no video surface
      * and no astro stack, so showing the tabs would only produce dead controls.
      */
-    fun stripModes(lite: Boolean): List<Mode> =
+    fun stripModes(lite: Boolean): List<Mode> = stripModes(lite, emptyList())
+
+    /**
+     * The strip with the user's own arrangement applied.
+     *
+     * Names that are not a mode of this edition are dropped, duplicates collapse, and
+     * an empty or unusable arrangement falls back to the default - so a settings file
+     * from another edition cannot leave the strip blank.
+     */
+    fun stripModes(lite: Boolean, custom: List<String>): List<Mode> {
+        val available = gridModes(lite).toSet()
+        if (custom.isEmpty()) return defaultStrip(lite)
+        val chosen = custom.mapNotNull { name ->
+            Mode.entries.firstOrNull { it.name == name }
+        }.filter { it in available }.distinct()
+        return chosen.ifEmpty { defaultStrip(lite) }
+    }
+
+    private fun defaultStrip(lite: Boolean): List<Mode> =
         if (lite) {
             listOf(Mode.PHOTO, Mode.NIGHT, Mode.PRO)
         } else {
             listOf(Mode.PHOTO, Mode.VIDEO, Mode.NIGHT, Mode.PRO, Mode.ASTRO)
         }
+
+    /** The strip with one mode added, or moved to the end if it was already there. */
+    fun withMode(lite: Boolean, custom: List<String>, mode: Mode): List<String> {
+        val current = stripModes(lite, custom).map { it.name }
+        return (current - mode.name) + mode.name
+    }
 
     /** Every mode the edition can actually do. The MORE grid lists exactly these. */
     fun gridModes(lite: Boolean): List<Mode> =

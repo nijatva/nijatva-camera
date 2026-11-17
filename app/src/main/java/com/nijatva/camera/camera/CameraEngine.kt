@@ -191,6 +191,9 @@ class CameraEngine(
     private val frames = mutableListOf<YuvFrame>()
 
     val capabilities: DeviceCapabilities? get() = caps
+
+    /** How far this camera can zoom, for the stops the pill offers. */
+    fun maxZoomRatio(): Float = caps?.maxDigitalZoom?.coerceAtLeast(1f) ?: 1f
     val isBusy: Boolean get() = busy
 
     // ---------------------------------------------------------------- lifecycle

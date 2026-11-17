@@ -24,6 +24,9 @@ class ZoomPill(context: Context) : LinearLayout(context) {
 
     private val chips = mutableListOf<Pair<Float, TextView>>()
 
+    /** The live readout shown while a pinch is in progress. */
+    private var live: TextView? = null
+
     init {
         orientation = HORIZONTAL
         gravity = Gravity.CENTER
@@ -38,10 +41,12 @@ class ZoomPill(context: Context) : LinearLayout(context) {
     fun bind(steps: List<Float>, selected: Float) {
         removeAllViews()
         chips.clear()
+        live = null
         steps.forEach { factor ->
             val chip = TextView(context).apply {
-                text = if (factor <= 1f) context.getString(R.string.zoom_one)
-                else context.getString(R.string.zoom_two)
+                // The label comes from the factor, not from a guess: a 3x step used to
+                // print "2x" because only two strings existed.
+                text = ZoomStops.label(factor)
                 setTextColor(Color.WHITE)
                 setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
                 typeface = Typeface.create("sans-serif", Typeface.BOLD)
@@ -59,9 +64,36 @@ class ZoomPill(context: Context) : LinearLayout(context) {
         select(selected)
     }
 
+    /** Shows the live zoom while a pinch is running, in place of the steps. */
+    fun showRatio(ratio: Float) {
+        val readout = live ?: TextView(context).apply {
+            setTextColor(ACCENT)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
+            typeface = Typeface.create("sans-serif", Typeface.BOLD)
+            gravity = Gravity.CENTER
+            setPadding(dp(12), dp(5), dp(12), dp(5))
+            live = this
+        }
+        readout.text = ZoomStops.label(ratio)
+        if (indexOfChild(readout) < 0) {
+            chips.forEach { (_, chip) -> chip.visibility = GONE }
+            addView(readout, 0)
+        }
+    }
+
+    /** Ends the live readout and returns to the steps. */
+    fun endRatio() {
+        val readout = live ?: return
+        removeView(readout)
+        live = null
+        chips.forEach { (_, chip) -> chip.visibility = VISIBLE }
+    }
+
     fun select(factor: Float) {
+        if (live != null) endRatio()
+        val nearest = ZoomStops.nearest(chips.map { it.first }, factor)
         chips.forEach { (value, chip) ->
-            val chosen = value == factor
+            val chosen = value == nearest
             chip.setTextColor(if (chosen) ACCENT else Color.WHITE)
             chip.alpha = if (chosen) 1f else 0.85f
         }
