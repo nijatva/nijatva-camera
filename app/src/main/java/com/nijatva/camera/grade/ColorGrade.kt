@@ -31,6 +31,8 @@ object ColorGrade {
         val sharpen: Float = 0.25f,
         /** Chroma denoise strength, 0..1. Luma is never touched. */
         val chromaNr: Float = 0.35f,
+        /** Widest colour difference the saturation stage may produce, 0..1. */
+        val chromaCeiling: Float = CHROMA_CEILING,
     ) {
         companion object {
             fun of(preset: LookPreset): Look = Look(
@@ -41,6 +43,7 @@ object ColorGrade {
                 shadowLift = preset.shadowLift,
                 sharpen = preset.sharpen,
                 chromaNr = preset.chromaNr,
+                chromaCeiling = preset.chromaCeiling,
             )
         }
     }
@@ -50,7 +53,7 @@ object ColorGrade {
      * yellow sits near 0.45 of the range already; pushing it past this is what makes
      * a scene look painted rather than photographed.
      */
-    private const val CHROMA_CEILING = 0.42f
+    const val CHROMA_CEILING = 0.42f
 
     private const val DOWN = 4
     private const val LUT_SIZE = 1024
@@ -108,8 +111,9 @@ object ColorGrade {
                 var dg = s * (g0 - y0)
                 var db = s * (b0 - y0)
                 val peak = maxOf(dr, dg, db) - minOf(dr, dg, db)
-                if (peak > CHROMA_CEILING) {
-                    val k = CHROMA_CEILING / peak
+                val ceiling = look.chromaCeiling
+                if (peak > ceiling) {
+                    val k = ceiling / peak
                     dr *= k
                     dg *= k
                     db *= k

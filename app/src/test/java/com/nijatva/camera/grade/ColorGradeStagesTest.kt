@@ -83,6 +83,21 @@ class ColorGradeStagesTest {
     }
 
     @Test
+    fun theCeilingIsPerLook() {
+        // A saturated frame graded with a wide ceiling keeps more colour than the
+        // same frame graded with the neutral one.
+        fun graded(ceiling: Float): Int {
+            val px = IntArray(64) { i ->
+                if (i % 2 == 0) (0xFF shl 24) or (230 shl 16) or (180 shl 8) or 40
+                else (0xFF shl 24) or (120 shl 16) or (160 shl 8) or 60
+            }
+            ColorGrade.apply(px, 8, 8, ColorGrade.Look(saturation = 1.3f, chromaCeiling = ceiling, chromaNr = 0f))
+            return px.maxOf { (it shr 16) and 0xFF } - px.minOf { (it shr 16) and 0xFF }
+        }
+        assertTrue("a wider ceiling must keep more colour", graded(0.7f) > graded(0.3f))
+    }
+
+    @Test
     fun aFullGradeOfGreyStaysGrey() {
         val px = grey(140, 12, 12)
         ColorGrade.apply(px, 12, 12, ColorGrade.Look.of(LookPreset.NATURAL))

@@ -22,16 +22,32 @@ class LookPresetTest {
             assertEquals(preset.shadowLift, look.shadowLift, 1e-6f)
             assertEquals(preset.sharpen, look.sharpen, 1e-6f)
             assertEquals(preset.chromaNr, look.chromaNr, 1e-6f)
+            assertEquals(preset.chromaCeiling, look.chromaCeiling, 1e-6f)
         }
     }
 
     @Test
-    fun vividIsTheMostSaturatedAndSharpest() {
-        val vivid = ColorGrade.Look.of(LookPreset.VIVID)
-        LookPreset.entries.filter { it != LookPreset.VIVID }.forEach {
+    fun punchIsTheMostSaturatedAndHasTheWidestColourRange() {
+        val punch = ColorGrade.Look.of(LookPreset.PUNCH)
+        LookPreset.entries.filter { it != LookPreset.PUNCH }.forEach {
             val other = ColorGrade.Look.of(it)
-            assertTrue("vivid must beat ${it.name} on saturation", vivid.saturation > other.saturation)
-            assertTrue("vivid must beat ${it.name} on sharpening", vivid.sharpen > other.sharpen)
+            assertTrue("punch must beat ${it.name} on saturation", punch.saturation > other.saturation)
+            assertTrue("punch must beat ${it.name} on chroma range", punch.chromaCeiling > other.chromaCeiling)
+        }
+    }
+
+    @Test
+    fun punchLeadsOnLocalContrast() {
+        val punch = ColorGrade.Look.of(LookPreset.PUNCH)
+        LookPreset.entries.filter { it != LookPreset.PUNCH }.forEach {
+            assertTrue("punch must lead on clarity", punch.clarity > ColorGrade.Look.of(it).clarity)
+        }
+    }
+
+    @Test
+    fun everyLookHasACeilingInRange() {
+        LookPreset.entries.forEach {
+            assertTrue("${it.name} ceiling", it.chromaCeiling in 0.2f..0.8f)
         }
     }
 

@@ -24,6 +24,7 @@ enum class LookPreset(
     val shadowLift: Float,
     val sharpen: Float,
     val chromaNr: Float,
+    val chromaCeiling: Float = 0.42f,
 ) {
     /** Neutral: the measured mid-grey, gentle clarity, nothing pushed. */
     NATURAL(
@@ -59,6 +60,26 @@ enum class LookPreset(
         shadowLift = 0.01f,
         sharpen = 0.40f,
         chromaNr = 0.45f,
+    ),
+
+    /**
+     * The poster look: strong local contrast, deep colour, a little warmth.
+     *
+     * Tuned against the reference wallpapers, which share three numbers: essentially
+     * no clipped pixels (0.01%), saturation between 0.48 and 0.65, and high local
+     * contrast. A phone cannot invent the missing dynamic range, but it can stop
+     * clipping its own highlights and can push the rest of the way in the curve.
+     */
+    PUNCH(
+        labelRes = R.string.look_punch,
+        clarity = 0.38f,
+        saturation = 1.30f,
+        shoulder = 0.88f,
+        warmth = 0.03f,
+        shadowLift = -0.01f,
+        sharpen = 0.30f,
+        chromaNr = 0.40f,
+        chromaCeiling = 0.55f,
     ),
 
     /** Lifted shadows, warm cast, soft highlights: forgiving and gentle. */
